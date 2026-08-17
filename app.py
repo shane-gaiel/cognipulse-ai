@@ -43,7 +43,8 @@ def save_data():
             "strictness": st.session_state.get("strictness", "High (Strict Socratic)"),
             "detail_level": st.session_state.get("detail_level", "Detailed & Step-by-Step")
         }
-        localStorage.setItem("cognipulse_user_session", json.dumps(data))
+        unique_key = f"save_{int(time.time() * 1000)}"
+        localStorage.setItem("cognipulse_user_session", json.dumps(data), key=unique_key)
     except Exception as e:
         st.warning(f"Unable to auto-save session: {e}")
 
