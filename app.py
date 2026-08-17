@@ -1,37 +1,38 @@
-import os
 import json
 import time
-import redis
 import streamlit as st
 from google import genai
 from google.genai import types
+from streamlit_local_storage import LocalStorage
 
 # -------------------------------------------------------------
-# 1. Upstash Redis Cloud Storage & Smart Session System
+# 1. Page Configuration (Must be first Streamlit command)
 # -------------------------------------------------------------
+st.set_page_config(
+    page_title="CogniPulse AI Socratic Tutor",
+    page_icon="🧠",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Initialize Browser LocalStorage
+localStorage = LocalStorage()
 SESSION_TIMEOUT_SECONDS = 3600  # 1 Hour timeout
 
-@st.cache_resource
-def get_redis_client():
-    return redis.Redis(
-        host=st.secrets["REDIS_HOST"],
-        port=int(st.secrets.get("REDIS_PORT", 6379)),
-        password=st.secrets["REDIS_PASSWORD"],
-        ssl=True,
-        decode_responses=True
-    )
-
+# -------------------------------------------------------------
+# 2. Local Storage Helpers (Device-Isolated Persistence)
+# -------------------------------------------------------------
 def load_save_data():
     try:
-        r = get_redis_client()
-        data = r.get("cognipulse_user_session")
-        return json.loads(data) if data else {}
+        data_str = localStorage.getItem("cognipulse_user_session")
+        if data_str:
+            return json.loads(data_str)
     except Exception:
-        return {}
+        pass
+    return {}
 
 def save_data():
     try:
-        r = get_redis_client()
         data = {
             "api_key": st.session_state.get("api_key", ""),
             "messages": st.session_state.get("messages", []),
@@ -42,21 +43,13 @@ def save_data():
             "strictness": st.session_state.get("strictness", "High (Strict Socratic)"),
             "detail_level": st.session_state.get("detail_level", "Detailed & Step-by-Step")
         }
-        r.set("cognipulse_user_session", json.dumps(data))
+        localStorage.setItem("cognipulse_user_session", json.dumps(data))
     except Exception as e:
         st.warning(f"Unable to auto-save session: {e}")
 
 # -------------------------------------------------------------
-# 2. Page Configuration & State Initialization
+# 3. State Initialization
 # -------------------------------------------------------------
-st.set_page_config(
-    page_title="CogniPulse AI Socratic Tutor",
-    page_icon="🧠",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# Load saved preferences on new session startup
 if "initialized" not in st.session_state:
     saved = load_save_data()
     st.session_state.api_key = saved.get("api_key", "")
@@ -83,7 +76,7 @@ if "initialized" not in st.session_state:
     st.session_state.initialized = True
 
 # -------------------------------------------------------------
-# 3. Fluid UI Styling & CSS
+# 4. Fluid UI Styling & CSS
 # -------------------------------------------------------------
 st.markdown("""
 <style>
@@ -126,7 +119,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 4. Sidebar Control Panel
+# 5. Sidebar Control Panel
 # -------------------------------------------------------------
 with st.sidebar:
     st.title("⚙️ Control Panel")
@@ -207,7 +200,7 @@ with st.sidebar:
     st.divider()
     
     # -------------------------------------------------------------
-    # 5. Interactive Recent Questions Center (Q&A Recall)
+    # 6. Interactive Recent Questions Center (Q&A Recall)
     # -------------------------------------------------------------
     st.subheader("🕒 Recent Questions Center")
     if st.session_state.recent_questions:
@@ -242,7 +235,7 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 6. Main UI Layout & Dashboard
+# 7. Main UI Layout & Dashboard
 # -------------------------------------------------------------
 st.title("🧠 CogniPulse AI")
 
@@ -272,7 +265,7 @@ with col3:
     """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 7. Dynamic Prompt Engineering & Math Accuracy Engine
+# 8. Dynamic Prompt Engineering & Math Accuracy Engine
 # -------------------------------------------------------------
 if "None" in st.session_state.strictness:
     guardrail_instructions = "CORE RULE: PROVIDE DIRECT ANSWERS AND FULL SOLUTIONS IMMEDIATELY. Do not hold back."
@@ -303,7 +296,7 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 # -------------------------------------------------------------
-# 8. Trigger Handling & Response Generation
+# 9. Trigger Handling & Response Generation
 # -------------------------------------------------------------
 active_prompt = None
 
