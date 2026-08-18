@@ -204,7 +204,6 @@ with st.sidebar:
         on_change=save_data
     )
     
-    # Minimal Notice on API permissions & Auto-Select recommendation
     st.caption("💡 *Note: Selected model must match your API key permissions. If unsure, set to **Auto-Select**.*")
     
     if selected_m == "Custom Model ID":
@@ -394,14 +393,22 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 # -------------------------------------------------------------
-# 8. File Upload Attachment & Real-Time Response Engine
+# 8. Integrated Attachment & Response Engine
 # -------------------------------------------------------------
-with st.expander("📎 Attach File / Image to Prompt", expanded=False):
-    uploaded_file = st.file_uploader(
-        "Upload image, document, or code file for AI analysis:",
-        type=["png", "jpg", "jpeg", "webp", "pdf", "txt", "py", "js"],
-        key="chat_file_uploader"
-    )
+uploaded_file = None
+
+# Integrated Attachment Action Bar with '+' Popover Button
+col_pop, col_status = st.columns([1, 12])
+with col_pop:
+    with st.popover("➕", help="Add image, document, or code file"):
+        uploaded_file = st.file_uploader(
+            "Attach File to Prompt:",
+            type=["png", "jpg", "jpeg", "webp", "pdf", "txt", "py", "js"],
+            key="chat_file_uploader"
+        )
+with col_status:
+    if uploaded_file:
+        st.caption(f"📎 **Attached File Ready:** `{uploaded_file.name}`")
 
 active_prompt = None
 
@@ -439,7 +446,6 @@ if active_prompt:
             if mime_type.startswith("image/"):
                 attachment_part = types.Part.from_bytes(data=file_bytes, mime_type=mime_type)
             else:
-                # Store temporarily for Gemini Files API upload
                 with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{uploaded_file.name}") as tmp:
                     tmp.write(file_bytes)
                     tmp_path = tmp.name
