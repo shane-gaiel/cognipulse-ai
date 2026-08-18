@@ -83,47 +83,30 @@ if "initialized" not in st.session_state:
     st.session_state.initialized = True
 
 # -------------------------------------------------------------
-# 4. Custom Responsive UI Styling & Sticky Header
+# 4. Custom Responsive UI Styling & Native Header Pinning
 # -------------------------------------------------------------
 st.markdown("""
 <style>
-    /* Make Streamlit top bar transparent so sticky logo shines through */
-    header[data-testid="stHeader"] {
-        background: transparent !important;
+    /* Embed CogniPulse AI directly into Streamlit's sticky top navbar */
+    header[data-testid="stHeader"]::before {
+        content: "🧠 CogniPulse AI";
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: var(--text-color, #ffffff);
+        position: absolute;
+        left: 4.2rem;
+        top: 50%;
+        transform: translateY(-50%);
+        white-space: nowrap;
+        z-index: 999999;
         pointer-events: none;
     }
-    header[data-testid="stHeader"] * {
-        pointer-events: auto;
-    }
 
+    /* Padding adjustment so body elements clear the fixed app bar */
     .main .block-container { 
-        padding-top: 0.5rem; 
+        padding-top: 4.5rem !important; 
         padding-bottom: 3rem; 
         max-width: 1200px;
-    }
-
-    /* Sticky Head Logo Header */
-    .sticky-logo-header {
-        position: sticky;
-        top: 0px;
-        z-index: 999;
-        background-color: var(--background-color);
-        padding: 12px 0px 10px 0px;
-        margin-top: -0.5rem;
-        margin-bottom: 1rem;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        backdrop-filter: blur(10px);
-    }
-    .sticky-logo-header h1 {
-        margin: 0 !important;
-        padding: 0 !important;
-        font-size: 1.85rem !important;
-        font-weight: 800 !important;
-        line-height: 1.2 !important;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        color: var(--text-color);
     }
 
     .dashboard-card {
@@ -351,14 +334,8 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 6. Sticky Header & Dynamic Dashboard
+# 6. Dynamic Dashboard
 # -------------------------------------------------------------
-st.markdown("""
-<div class="sticky-logo-header">
-    <h1>🧠 CogniPulse AI</h1>
-</div>
-""", unsafe_allow_html=True)
-
 col1, col2, col3, col4 = st.columns(4)
 with col1:
     st.markdown(f"""
