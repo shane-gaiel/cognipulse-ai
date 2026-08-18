@@ -84,9 +84,29 @@ if "initialized" not in st.session_state:
     st.session_state.initialized = True
 
 # -------------------------------------------------------------
-# 4. Custom Responsive UI Styling & Floating Scroll Button
+# 4. Custom Responsive UI Styling & Smart Floating Scroll Button
 # -------------------------------------------------------------
 is_gen = st.session_state.get("is_generating", False)
+
+is_gen_css = ""
+if is_gen:
+    is_gen_css = """
+    button[data-testid='stChatInputSubmitButton'] { position: relative !important; }
+    button[data-testid='stChatInputSubmitButton'] svg { display: none !important; }
+    button[data-testid='stChatInputSubmitButton']::after { 
+        content: '■' !important; 
+        color: #ff4b4b !important; 
+        font-size: 1.2rem !important; 
+        position: absolute !important; 
+        top: 0 !important; 
+        left: 0 !important; 
+        width: 100% !important; 
+        height: 100% !important; 
+        display: flex !important; 
+        align-items: center !important; 
+        justify-content: center !important; 
+    }
+    """
 
 st.markdown(f"""
 <style>
@@ -132,7 +152,7 @@ st.markdown(f"""
     }}
 
     /* ===================================================================== */
-    /* FLOATING SCROLL-TO-BOTTOM ARROW BUTTON                                */
+    /* FLOATING SCROLL-TO-BOTTOM ARROW BUTTON (Hidden by default)           */
     /* ===================================================================== */
     .scroll-down-btn {{
         position: fixed;
@@ -144,7 +164,7 @@ st.markdown(f"""
         border-radius: 50%;
         width: 42px;
         height: 42px;
-        display: flex;
+        display: none; /* Hidden until scrolled up */
         align-items: center;
         justify-content: center;
         font-size: 1.3rem;
@@ -158,12 +178,8 @@ st.markdown(f"""
         transform: scale(1.1);
     }}
 
-    /* ===================================================================== */
-    /* DYNAMIC SEND BUTTON MODIFIER: Toggles to red ■ ONLY on send button   */
-    /* ===================================================================== */
-    {"button[data-testid='stChatInputSubmitButton'] { position: relative !important; }" if is_gen else ""}
-    {"button[data-testid='stChatInputSubmitButton'] svg { display: none !important; }" if is_gen else ""}
-    {"button[data-testid='stChatInputSubmitButton']::after { content: '■' !important; color: #ff4b4b !important; font-size: 1.2rem !important; position: absolute !important; top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important; display: flex !important; align-items: center !important; justify-content: center !important; }" if is_gen else ""}
+    /* Dynamic Send Button Modifiers */
+    {is_gen_css}
 
     /* Custom Styling for Dashboard Elements */
     .dashboard-card {{
@@ -230,15 +246,42 @@ st.markdown(f"""
 </style>
 
 <!-- Floating Scroll-to-Bottom Button Widget -->
-<div class="scroll-down-btn" title="Jump to bottom" onclick="
+<div class="scroll-down-btn" id="scrollDownBtn" title="Jump to bottom" onclick="
     const mainContainer = window.parent.document.querySelector('section.main');
-    if (mainContainer) {
-        mainContainer.scrollTo({ top: mainContainer.scrollHeight, behavior: 'smooth' });
-    }
-    window.parent.scrollTo({ top: window.parent.document.body.scrollHeight, behavior: 'smooth' });
+    if (mainContainer) {{
+        mainContainer.scrollTo({{ top: mainContainer.scrollHeight, behavior: 'smooth' }});
+    }}
+    window.parent.scrollTo({{ top: window.parent.document.body.scrollHeight, behavior: 'smooth' }});
 ">
     ↓
 </div>
+
+<script>
+    // Monitor scroll position to dynamically show/hide the scroll-down arrow button when scrolled up
+    (function() {{
+        const doc = window.parent.document;
+        const checkContainer = () => {{
+            const mainContainer = doc.querySelector('section.main');
+            const scrollBtn = doc.getElementById('scrollDownBtn');
+            if (mainContainer && scrollBtn) {{
+                const updateVisibility = () => {{
+                    const distanceFromBottom = mainContainer.scrollHeight - (mainContainer.scrollTop + mainContainer.clientHeight);
+                    // Show arrow if scrolled up more than 300px away from the bottom
+                    if (distanceFromBottom > 300) {{
+                        scrollBtn.style.display = 'flex';
+                    }} else {{
+                        scrollBtn.style.display = 'none';
+                    }}
+                }};
+                mainContainer.removeEventListener('scroll', updateVisibility);
+                mainContainer.addEventListener('scroll', updateVisibility);
+                updateVisibility();
+            }}
+        }};
+        setTimeout(checkContainer, 500);
+        doc.addEventListener('DOMContentLoaded', checkContainer);
+    }})();
+</script>
 """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------
