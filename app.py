@@ -83,14 +83,47 @@ if "initialized" not in st.session_state:
     st.session_state.initialized = True
 
 # -------------------------------------------------------------
-# 4. Custom Responsive UI Styling
+# 4. Custom Responsive UI Styling & Sticky Header
 # -------------------------------------------------------------
 st.markdown("""
 <style>
+    /* Make Streamlit top bar transparent so sticky logo shines through */
+    header[data-testid="stHeader"] {
+        background: transparent !important;
+        pointer-events: none;
+    }
+    header[data-testid="stHeader"] * {
+        pointer-events: auto;
+    }
+
     .main .block-container { 
-        padding-top: 1.5rem; 
+        padding-top: 0.5rem; 
         padding-bottom: 3rem; 
         max-width: 1200px;
+    }
+
+    /* Sticky Head Logo Header */
+    .sticky-logo-header {
+        position: sticky;
+        top: 0px;
+        z-index: 999;
+        background-color: var(--background-color);
+        padding: 12px 0px 10px 0px;
+        margin-top: -0.5rem;
+        margin-bottom: 1rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+    }
+    .sticky-logo-header h1 {
+        margin: 0 !important;
+        padding: 0 !important;
+        font-size: 1.85rem !important;
+        font-weight: 800 !important;
+        line-height: 1.2 !important;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--text-color);
     }
 
     .dashboard-card {
@@ -318,9 +351,13 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 6. Main Header & Dynamic Dashboard
+# 6. Sticky Header & Dynamic Dashboard
 # -------------------------------------------------------------
-st.title("🧠 CogniPulse AI")
+st.markdown("""
+<div class="sticky-logo-header">
+    <h1>🧠 CogniPulse AI</h1>
+</div>
+""", unsafe_allow_html=True)
 
 col1, col2, col3, col4 = st.columns(4)
 with col1:
