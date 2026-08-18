@@ -67,6 +67,7 @@ if "initialized" not in st.session_state:
     st.session_state.detail_level = saved.get("detail_level", "Detailed & Step-by-Step")
     st.session_state.last_working_model = "Auto-Engine"
     st.session_state.is_generating = False
+    st.session_state.needs_scroll = False
     
     last_active = saved.get("last_active", 0)
     current_time = time.time()
@@ -349,6 +350,7 @@ with st.sidebar:
                     st.session_state.messages.append({"role": "assistant", "content": a_text})
                 else:
                     st.session_state.selected_recent = q_text
+                st.session_state.needs_scroll = True
                 save_data()
                 st.rerun()
     else:
@@ -477,31 +479,11 @@ if active_prompt:
         display_user_content = active_prompt
 
     st.session_state.messages.append({"role": "user", "content": display_user_content})
+    st.session_state.needs_scroll = True
     save_data()
 
     with st.chat_message("user"):
         st.markdown(display_user_content)
-
-    # =====================================================================
-    # IMMEDIATE AUTO-SCROLL ON PROMPT SUBMISSION
-    # =====================================================================
-    st.markdown("""
-        <script>
-            setTimeout(function() {
-                const mainContainer = window.parent.document.querySelector('section.main');
-                if (mainContainer) {
-                    mainContainer.scrollTo({
-                        top: mainContainer.scrollHeight,
-                        behavior: 'smooth'
-                    });
-                }
-                window.parent.scrollTo({
-                    top: window.parent.document.body.scrollHeight,
-                    behavior: 'smooth'
-                });
-            }, 50);
-        </script>
-    """, unsafe_allow_html=True)
 
     # =====================================================================
     # ACTIVATE GENERATION STATE (Triggers red ■ directly on the send button)
@@ -614,7 +596,31 @@ if st.session_state.get("is_generating", False):
             st.error(f"Oops! Something went wrong: {str(e)}")
 
     # =====================================================================
-    # DEACTIVATE GENERATION STATE (Restores send button back to normal)
+    # DEACTIVATE GENERATION STATE & TRIGGER FINAL SCROLL
     # =====================================================================
     st.session_state.is_generating = False
+    st.session_state.needs_scroll = True
     st.rerun()
+
+# -------------------------------------------------------------
+# 9. Centralized Smooth Auto-Scroll Handler
+# -------------------------------------------------------------
+if st.session_state.get("needs_scroll", False):
+    st.markdown("""
+        <script>
+            setTimeout(function() {
+                const mainContainer = window.parent.document.querySelector('section.main');
+                if (mainContainer) {
+                    mainContainer.scrollTo({
+                        top: mainContainer.scrollHeight,
+                        behavior: 'smooth'
+                    });
+                }
+                window.parent.scrollTo({
+                    top: window.parent.document.body.scrollHeight,
+                    behavior: 'smooth'
+                });
+            }, 120);
+        </script>
+    """, unsafe_allow_html=True)
+    st.session_state.needs_scroll = False
