@@ -22,9 +22,14 @@ localStorage = LocalStorage()
 SESSION_TIMEOUT_SECONDS = 3600  # 1 Hour session window
 
 # -------------------------------------------------------------
-# 2. Local Storage Saving Helper
+# 2. Local Storage Saving Helpers
 # -------------------------------------------------------------
-def save_data():
+def mark_for_save():
+    """Sets a flag to safely trigger a save during the main script run."""
+    st.session_state.needs_save = True
+
+def execute_save():
+    """Writes the current state to browser local storage safely."""
     try:
         data = {
             "api_key": st.session_state.get("api_key", ""),
@@ -38,16 +43,15 @@ def save_data():
             "strictness": st.session_state.get("strictness", "High (Strict Socratic)"),
             "detail_level": st.session_state.get("detail_level", "Detailed & Step-by-Step")
         }
-        # Fixed Key: Prevents Streamlit from generating excessive DOM iframes on every save
-        localStorage.setItem("cognipulse_user_session", json.dumps(data), key="cognipulse_ls_set")
+        # Static key prevents Streamlit from duplicating DOM elements on every save
+        localStorage.setItem("cognipulse_user_session", json.dumps(data), key="cognipulse_storage_writer")
     except Exception as e:
         st.warning(f"Unable to auto-save session: {e}")
 
 # -------------------------------------------------------------
 # 3. Session State Initialization & Data Restoration
 # -------------------------------------------------------------
-# Fetch data at the top level so the React component mounts and syncs reliably
-saved_str = localStorage.getItem("cognipulse_user_session", key="cognipulse_ls_get")
+saved_str = localStorage.getItem("cognipulse_user_session", key="cognipulse_storage_reader")
 
 # Step A: Initialize defaults on the very first script run
 if "initialized" not in st.session_state:
@@ -61,6 +65,7 @@ if "initialized" not in st.session_state:
     st.session_state.detail_level = "Detailed & Step-by-Step"
     st.session_state.last_working_model = "Auto-Engine"
     st.session_state.is_generating = False
+    st.session_state.needs_save = False
     
     st.session_state.messages = [{
         "role": "assistant", 
@@ -68,9 +73,9 @@ if "initialized" not in st.session_state:
     }]
     
     st.session_state.initialized = True
-    st.session_state.ls_loaded = False # Flag to track when localStorage successfully injects data
+    st.session_state.ls_loaded = False 
 
-# Step B: Inject LocalStorage data once the component returns it (Fixes the refresh wipe bug)
+# Step B: Inject LocalStorage data once the component returns it
 if saved_str and not st.session_state.ls_loaded:
     try:
         saved = json.loads(saved_str)
@@ -83,7 +88,6 @@ if saved_str and not st.session_state.ls_loaded:
         st.session_state.strictness = saved.get("strictness", st.session_state.strictness)
         st.session_state.detail_level = saved.get("detail_level", st.session_state.detail_level)
         
-        # Restore messages if within the session timeout window
         last_active = saved.get("last_active", 0)
         saved_messages = saved.get("messages", [])
         
@@ -91,7 +95,7 @@ if saved_str and not st.session_state.ls_loaded:
             st.session_state.messages = saved_messages
             
         st.session_state.ls_loaded = True
-        st.rerun() # Force an immediate UI refresh to show the loaded chat
+        st.rerun() 
     except Exception:
         pass
 
@@ -102,7 +106,6 @@ is_gen = st.session_state.get("is_generating", False)
 
 st.markdown(f"""
 <style>
-    /* Embed CogniPulse AI directly into Streamlit's sticky top navbar */
     header[data-testid="stHeader"]::before {{
         content: "🧠 CogniPulse AI";
         font-size: 1.25rem;
@@ -117,14 +120,12 @@ st.markdown(f"""
         pointer-events: none;
     }}
 
-    /* Padding adjustment so body elements clear the fixed app bar */
     .main .block-container {{ 
         padding-top: 4.5rem !important; 
         padding-bottom: 4rem; 
         max-width: 1200px;
     }}
 
-    /* Completely hide Streamlit's default header stop button and status widget */
     header [data-testid="stStatusWidget"],
     [data-testid="stStatusWidget"],
     .stStatusWidget,
@@ -138,19 +139,14 @@ st.markdown(f"""
         height: 0 !important;
     }}
 
-    /* Optimize chat input positioning and prevent layout overlap */
     [data-testid="stChatInput"] {{
         bottom: 1rem !important;
     }}
 
-    /* ===================================================================== */
-    /* DYNAMIC SEND BUTTON MODIFIER: Toggles to red ■ ONLY on send button   */
-    /* ===================================================================== */
     {"button[data-testid='stChatInputSubmitButton'] { position: relative !important; }" if is_gen else ""}
     {"button[data-testid='stChatInputSubmitButton'] svg { display: none !important; }" if is_gen else ""}
     {"button[data-testid='stChatInputSubmitButton']::after { content: '■' !important; color: #ff4b4b !important; font-size: 1.2rem !important; position: absolute !important; top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important; display: flex !important; align-items: center !important; justify-content: center !important; }" if is_gen else ""}
 
-    /* Custom Styling for Dashboard Elements */
     .dashboard-card {{
         background: var(--secondary-background-color);
         color: var(--text-color);
@@ -221,7 +217,6 @@ st.markdown(f"""
 with st.sidebar:
     st.title("⚙️ Control Panel")
     
-    # --- API Key Management ---
     if not st.session_state.api_key:
         st.info("🔑 Enter Your API Key")
         st.markdown("<div style='font-size: 0.82rem; margin-bottom: 10px;'>Get your free Gemini API key from <a href='https://aistudio.google.com/app/apikey' target='_blank'>Google AI Studio</a>.</div>", unsafe_allow_html=True)
@@ -229,18 +224,17 @@ with st.sidebar:
         if st.button("🔒 Lock In Key", use_container_width=True, type="primary"):
             if input_key.strip():
                 st.session_state.api_key = input_key.strip()
-                save_data()
+                mark_for_save()
                 st.rerun()
     else:
         st.success("✅ API Key Active")
         if st.button("🔑 Change API Key", use_container_width=True):
             st.session_state.api_key = ""
-            save_data()
+            mark_for_save()
             st.rerun()
             
     st.divider()
 
-    # --- Multi-Model Engine ---
     st.subheader("🤖 AI Model Engine")
     model_options = [
         "Auto-Select (Flash & Pro Engine)",
@@ -259,7 +253,7 @@ with st.sidebar:
         model_options,
         index=model_options.index(st.session_state.selected_model) if st.session_state.selected_model in model_options else 0,
         key="selected_model",
-        on_change=save_data
+        on_change=mark_for_save
     )
     
     st.caption("💡 *Note: Selected model must match your API key permissions. If unsure, set to **Auto-Select**.*")
@@ -268,12 +262,11 @@ with st.sidebar:
         st.text_input(
             "Enter Custom Model String:",
             key="custom_model",
-            on_change=save_data
+            on_change=mark_for_save
         )
 
     st.divider()
 
-    # --- Subject & Analogy Theme Engine ---
     st.subheader("📚 Subject & Context")
     subject_opts = [
         "Physics & Mechanics", "Mathematics & Calculus", "Computer Science & Python", 
@@ -285,7 +278,7 @@ with st.sidebar:
         subject_opts,
         index=subject_opts.index(st.session_state.subject) if st.session_state.subject in subject_opts else 0,
         key="subject",
-        on_change=save_data
+        on_change=mark_for_save
     )
 
     theme_opts = [
@@ -302,12 +295,11 @@ with st.sidebar:
         theme_opts,
         index=theme_opts.index(st.session_state.analogy_theme) if st.session_state.analogy_theme in theme_opts else 0,
         key="analogy_theme",
-        on_change=save_data
+        on_change=mark_for_save
     )
     
     st.divider()
     
-    # --- Guardrail Controls ---
     st.subheader("🛡️ AI Guardrails")
     strict_opts = ["None (Direct Answers)", "Low (Answer + Guidance)", "Medium (Hints First)", "High (Strict Socratic)"]
     st.select_slider(
@@ -315,7 +307,7 @@ with st.sidebar:
         options=strict_opts,
         value=st.session_state.strictness,
         key="strictness",
-        on_change=save_data
+        on_change=mark_for_save
     )
     
     st.radio(
@@ -324,14 +316,12 @@ with st.sidebar:
         index=0 if st.session_state.detail_level == "Concise & Quick" else 1,
         horizontal=True,
         key="detail_level",
-        on_change=save_data
+        on_change=mark_for_save
     )
 
     st.divider()
 
-    # --- Session & Export Tools ---
     st.subheader("💾 Session Tools")
-    
     chat_export = "\n\n".join([f"### {m['role'].capitalize()}\n{m['content']}" for m in st.session_state.get('messages', [])])
     st.download_button(
         label="📥 Export Session Notes (.md)",
@@ -346,12 +336,11 @@ with st.sidebar:
             "role": "assistant", 
             "content": f"Chat cleared. What are we studying in **{st.session_state.subject}** today?"
         }]
-        save_data()
+        mark_for_save()
         st.rerun()
 
     st.divider()
     
-    # --- Interactive Recent Questions Recall ---
     st.subheader("🕒 Recent Questions Center")
     if st.session_state.recent_questions:
         st.caption("Click any topic to recall the prompt:")
@@ -368,12 +357,11 @@ with st.sidebar:
                     st.session_state.messages.append({"role": "assistant", "content": a_text})
                 else:
                     st.session_state.selected_recent = q_text
-                save_data()
+                mark_for_save()
                 st.rerun()
     else:
         st.caption("No recent questions logged yet.")
 
-    # --- Author Attribution ---
     st.markdown("""
     <div class="credits-footer">
         <span style="font-size: 0.8rem; opacity: 0.7;">Project created by</span><br>
@@ -496,25 +484,24 @@ if active_prompt:
         display_user_content = active_prompt
 
     st.session_state.messages.append({"role": "user", "content": display_user_content})
-    save_data()
+    mark_for_save()
 
     with st.chat_message("user"):
         st.markdown(display_user_content)
 
-    # =====================================================================
-    # ACTIVATE GENERATION STATE (Triggers red ■ directly on the send button)
-    # =====================================================================
     st.session_state.is_generating = True
     st.rerun()
 
-# Execute generation if flagged with Robust Multi-Model Fallback
+# -------------------------------------------------------------
+# 9. Execution Block
+# -------------------------------------------------------------
 if st.session_state.get("is_generating", False):
     active_prompt = st.session_state.messages[-1]["content"] if st.session_state.messages else ""
     
     try:
         client = genai.Client(api_key=st.session_state.api_key)
-        
         prompt_parts = []
+        
         for uploaded_file in attached_files:
             file_bytes = uploaded_file.getvalue()
             mime_type = uploaded_file.type or "application/octet-stream"
@@ -559,7 +546,6 @@ if st.session_state.get("is_generating", False):
             else:
                 prompt_payload = active_prompt
 
-            # Loop through candidate models with silent fallback for 503 / High Demand errors
             for model_id in candidates:
                 try:
                     chat = client.chats.create(
@@ -584,7 +570,7 @@ if st.session_state.get("is_generating", False):
                     last_exception = model_err
                     err_str = str(model_err).lower()
                     if any(code in err_str for code in ["503", "unavailable", "resource_exhausted", "high demand", "quota"]):
-                        continue  # Silently try next fallback model
+                        continue
                     else:
                         raise model_err
 
@@ -602,7 +588,7 @@ if st.session_state.get("is_generating", False):
                 "a": assistant_reply
             })
             
-            save_data()
+            mark_for_save()
 
     except Exception as e:
         error_str = str(e).lower()
@@ -611,8 +597,12 @@ if st.session_state.get("is_generating", False):
         else:
             st.error(f"Oops! Something went wrong: {str(e)}")
 
-    # =====================================================================
-    # DEACTIVATE GENERATION STATE
-    # =====================================================================
     st.session_state.is_generating = False
     st.rerun()
+
+# -------------------------------------------------------------
+# 10. Execute Safely Staged Saves
+# -------------------------------------------------------------
+if st.session_state.get("needs_save", False):
+    execute_save()
+    st.session_state.needs_save = False
