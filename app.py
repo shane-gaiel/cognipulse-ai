@@ -66,7 +66,7 @@ if "initialized" not in st.session_state:
     st.session_state.strictness = saved.get("strictness", "High (Strict Socratic)")
     st.session_state.detail_level = saved.get("detail_level", "Detailed & Step-by-Step")
     st.session_state.last_working_model = "Auto-Engine"
-    st.session_state.is_generating = False  # Track generation state for button toggle
+    st.session_state.is_generating = False
     
     last_active = saved.get("last_active", 0)
     current_time = time.time()
@@ -146,10 +146,11 @@ st.markdown(f"""
     }}
 
     /* ===================================================================== */
-    /* DYNAMIC SEND BUTTON MODIFIER: Toggles to red ■ ONLY while answering   */
+    /* DYNAMIC SEND BUTTON MODIFIER: Replaces send icon inside the button    */
     /* ===================================================================== */
+    {"button[data-testid='stChatInputSubmitButton'] { position: relative !important; }" if is_gen else ""}
     {"button[data-testid='stChatInputSubmitButton'] svg { display: none !important; }" if is_gen else ""}
-    {"button[data-testid='stChatInputSubmitButton']::after { content: '■'; color: #ff4b4b !important; font-size: 1.6rem; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; justify-content: center; }" if is_gen else ""}
+    {"button[data-testid='stChatInputSubmitButton']::after { content: '■' !important; color: #ff4b4b !important; font-size: 1.2rem !important; position: absolute !important; top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important; display: flex !important; align-items: center !important; justify-content: center !important; }" if is_gen else ""}
 
     /* Custom Styling for Dashboard Elements */
     .dashboard-card {{
@@ -439,7 +440,7 @@ Explanation Depth Preference: {st.session_state.detail_level}.
 
 STRICT FORMATTING RULES:
 1. Step-by-step mathematical calculations must be independently computed prior to stating final answers.
-2. NEVER output broken or raw complex LaTeX environments like \\phantom or unclosed \\begin{{array}} outside standard LaTeX blocks.
+2. NEVER output raw complex LaTeX environments like \\phantom or unclosed \\begin{{array}} outside standard LaTeX blocks.
 3. Use simple inline $...$ or display $$...$$ for math. For alignment/place values, use standard bullet points or simple text lines.
 4. Keep all normal explanations in clean Markdown without unescaped LaTeX tags.
 """
@@ -496,14 +497,13 @@ if active_prompt:
         st.markdown(display_user_content)
 
     # =====================================================================
-    # ACTIVATE GENERATION STATE (Triggers red ■ on send button globally)
+    # ACTIVATE GENERATION STATE (Triggers red ■ directly on the send button)
     # =====================================================================
     st.session_state.is_generating = True
     st.rerun()
 
 # Execute generation if flagged
 if st.session_state.get("is_generating", False):
-    # Retrieve the last user prompt to process
     active_prompt = st.session_state.messages[-1]["content"] if st.session_state.messages else ""
     
     try:
@@ -530,7 +530,7 @@ if st.session_state.get("is_generating", False):
                 role="user" if m["role"] == "user" else "model",
                 parts=[types.Part.from_text(text=m["content"])]
             )
-            for m in st.session_state.messages[:-2] # Exclude latest user message
+            for m in st.session_state.messages[:-2]
         ]
 
         if st.session_state.selected_model.startswith("Auto-Select"):
