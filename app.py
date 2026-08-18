@@ -556,7 +556,7 @@ if st.session_state.get("is_generating", False):
                 )
                 expected_role = "model" if expected_role == "user" else "user"
 
-        # DYNAMIC API MODEL DISCOVERY
+        # DYNAMIC API MODEL DISCOVERY (Filtered to exclude non-chat/TTS models)
         if st.session_state.selected_model.startswith("Auto-Select"):
             try:
                 discovered_models = []
@@ -566,6 +566,9 @@ if st.session_state.get("is_generating", False):
                         m_name = model_obj.name
                         if m_name.startswith("models/"):
                             m_name = m_name[7:]
+                        # Exclude non-chat or specialized utility models
+                        if any(kw in m_name.lower() for kw in ["tts", "embedding", "imagen", "vision-only"]):
+                            continue
                         discovered_models.append(m_name)
                 
                 if discovered_models:
@@ -614,7 +617,8 @@ if st.session_state.get("is_generating", False):
                 except Exception as model_err:
                     last_exception = model_err
                     err_str = str(model_err).lower()
-                    if any(code in err_str for code in ["404", "not_found", "503", "unavailable", "resource_exhausted", "high demand", "quota"]):
+                    # Catch fallback conditions including 400/multiturn limitations smoothly
+                    if any(code in err_str for code in ["404", "not_found", "503", "unavailable", "resource_exhausted", "high demand", "quota", "400", "invalid_argument", "multiturn"]):
                         continue
                     else:
                         raise model_err
