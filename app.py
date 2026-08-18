@@ -66,6 +66,7 @@ if "initialized" not in st.session_state:
     st.session_state.strictness = saved.get("strictness", "High (Strict Socratic)")
     st.session_state.detail_level = saved.get("detail_level", "Detailed & Step-by-Step")
     st.session_state.last_working_model = "Auto-Engine"
+    st.session_state.is_generating = False  # Track generation state for button toggle
     
     last_active = saved.get("last_active", 0)
     current_time = time.time()
@@ -83,12 +84,14 @@ if "initialized" not in st.session_state:
     st.session_state.initialized = True
 
 # -------------------------------------------------------------
-# 4. Custom Responsive UI Styling & Native Header Pinning
+# 4. Custom Responsive UI Styling & Global Send-Button Modifier
 # -------------------------------------------------------------
-st.markdown("""
+is_gen = st.session_state.get("is_generating", False)
+
+st.markdown(f"""
 <style>
     /* Embed CogniPulse AI directly into Streamlit's sticky top navbar */
-    header[data-testid="stHeader"]::before {
+    header[data-testid="stHeader"]::before {{
         content: "🧠 CogniPulse AI";
         font-size: 1.25rem;
         font-weight: 800;
@@ -100,30 +103,26 @@ st.markdown("""
         white-space: nowrap;
         z-index: 999999;
         pointer-events: none;
-    }
+    }}
 
     /* Padding adjustment so body elements clear the fixed app bar */
-    .main .block-container { 
+    .main .block-container {{ 
         padding-top: 4.5rem !important; 
         padding-bottom: 3rem; 
         max-width: 1200px;
-    }
+    }}
 
-    /* ========================================================= */
-    /* UI FIX: Hide Native Running Widget & Replace Top Stop Btn */
-    /* ========================================================= */
-    
-    /* Hide the default Streamlit processing 'Running...' text and runner icon */
+    /* Hide the default Streamlit processing runner icon */
     [data-testid="stStatusWidget"] label,
     [data-testid="stStatusWidget"] p,
     [data-testid="stStatusWidget"] img,
     [data-testid="stStatusWidget"] svg,
-    [data-testid="stStatusWidget"] small {
+    [data-testid="stStatusWidget"] small {{
         display: none !important;
-    }
+    }}
 
     /* Style the top right 'Stop' button into a sleek '■' icon */
-    [data-testid="stStatusWidget"] button {
+    [data-testid="stStatusWidget"] button {{
         color: transparent !important;
         background-color: transparent !important;
         border: none !important;
@@ -131,11 +130,11 @@ st.markdown("""
         position: relative;
         width: 32px !important;
         height: 32px !important;
-    }
+    }}
     
-    [data-testid="stStatusWidget"] button::after {
+    [data-testid="stStatusWidget"] button::after {{
         content: "■";
-        color: #ff4b4b; /* Vibrant Red Stop */
+        color: #ff4b4b;
         font-size: 1.6rem;
         position: absolute;
         left: 50%;
@@ -144,16 +143,16 @@ st.markdown("""
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: transform 0.15s ease-in-out;
-    }
-    [data-testid="stStatusWidget"] button:hover::after {
-        transform: translate(-50%, -50%) scale(1.15);
-    }
+    }}
 
-    /* ========================================================= */
-    /* Custom Styling for Dashboard Elements                     */
-    /* ========================================================= */
-    .dashboard-card {
+    /* ===================================================================== */
+    /* DYNAMIC SEND BUTTON MODIFIER: Toggles to red ■ ONLY while answering   */
+    /* ===================================================================== */
+    {"button[data-testid='stChatInputSubmitButton'] svg { display: none !important; }" if is_gen else ""}
+    {"button[data-testid='stChatInputSubmitButton']::after { content: '■'; color: #ff4b4b !important; font-size: 1.6rem; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; justify-content: center; }" if is_gen else ""}
+
+    /* Custom Styling for Dashboard Elements */
+    .dashboard-card {{
         background: var(--secondary-background-color);
         color: var(--text-color);
         border-radius: 14px;
@@ -162,37 +161,37 @@ st.markdown("""
         border-left: 5px solid var(--primary-color);
         box-shadow: 0 4px 12px rgba(0,0,0,0.06);
         transition: all 0.25s ease-in-out;
-    }
-    .dashboard-card:hover { 
+    }}
+    .dashboard-card:hover {{ 
         transform: translateY(-2px); 
         box-shadow: 0 8px 20px rgba(0,0,0,0.12); 
-    }
-    .card-title {
+    }}
+    .card-title {{
         font-size: 0.75rem;
         text-transform: uppercase;
         letter-spacing: 0.8px;
         opacity: 0.7;
         margin-bottom: 4px;
         font-weight: 600;
-    }
-    .card-value {
+    }}
+    .card-value {{
         font-size: 1.15rem;
         font-weight: 700;
         color: var(--primary-color);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-    }
+    }}
 
-    .credits-footer {
+    .credits-footer {{
         margin-top: 25px;
         padding: 18px 14px;
         background: var(--secondary-background-color);
         border-radius: 12px;
         text-align: center;
         border-bottom: 3px solid var(--primary-color);
-    }
-    .contact-btn {
+    }}
+    .contact-btn {{
         display: inline-block;
         margin-top: 10px;
         padding: 8px 18px;
@@ -203,17 +202,17 @@ st.markdown("""
         font-size: 0.85rem;
         font-weight: 600;
         transition: all 0.25s ease;
-    }
-    .contact-btn:hover { 
+    }}
+    .contact-btn:hover {{ 
         filter: brightness(1.15); 
         transform: translateY(-1px); 
-    }
+    }}
 
-    .stChatMessage {
+    .stChatMessage {{
         border-radius: 12px;
         padding: 12px;
         margin-bottom: 8px;
-    }
+    }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -456,7 +455,6 @@ for message in st.session_state.messages:
 active_prompt = None
 attached_files = []
 
-# Native Gemini-Style Attachment Button embedded directly INSIDE the Chat Bar
 chat_response = st.chat_input(
     "Ask a question, request a concept breakdown, or share a problem...",
     accept_file=True,
@@ -497,10 +495,20 @@ if active_prompt:
     with st.chat_message("user"):
         st.markdown(display_user_content)
 
+    # =====================================================================
+    # ACTIVATE GENERATION STATE (Triggers red ■ on send button globally)
+    # =====================================================================
+    st.session_state.is_generating = True
+    st.rerun()
+
+# Execute generation if flagged
+if st.session_state.get("is_generating", False):
+    # Retrieve the last user prompt to process
+    active_prompt = st.session_state.messages[-1]["content"] if st.session_state.messages else ""
+    
     try:
         client = genai.Client(api_key=st.session_state.api_key)
         
-        # Process attached files
         prompt_parts = []
         for uploaded_file in attached_files:
             file_bytes = uploaded_file.getvalue()
@@ -517,16 +525,14 @@ if active_prompt:
                 prompt_parts.append(uploaded_remote)
                 os.remove(tmp_path)
 
-        # Build contextual history payload
         history = [
             types.Content(
                 role="user" if m["role"] == "user" else "model",
                 parts=[types.Part.from_text(text=m["content"])]
             )
-            for m in st.session_state.messages[:-1]
+            for m in st.session_state.messages[:-2] # Exclude latest user message
         ]
 
-        # Determine Model Candidates
         if st.session_state.selected_model.startswith("Auto-Select"):
             candidates = [
                 "gemini-3.6-flash", "gemini-3.1-pro", "gemini-2.5-pro",
@@ -539,70 +545,16 @@ if active_prompt:
             candidates = [st.session_state.selected_model]
 
         with st.chat_message("assistant"):
-            
-            # =====================================================================
-            # DYNAMIC UI INJECTION: Chat Processing & Dynamic Send-to-Stop Button
-            # =====================================================================
-            loading_ui = st.empty()
-            loading_ui.markdown("""
-                <style>
-                    /* 1. Custom pulsing dots inside the chat box */
-                    .chat-processing {
-                        display: inline-flex;
-                        align-items: center;
-                        gap: 6px;
-                        padding: 8px 12px;
-                        border-radius: 8px;
-                    }
-                    .chat-processing span {
-                        width: 8px;
-                        height: 8px;
-                        background-color: var(--primary-color, #ff4b4b);
-                        border-radius: 50%;
-                        animation: pulse 1.4s infinite ease-in-out both;
-                    }
-                    .chat-processing span:nth-child(1) { animation-delay: -0.32s; }
-                    .chat-processing span:nth-child(2) { animation-delay: -0.16s; }
-                    
-                    @keyframes pulse {
-                        0%, 80%, 100% { transform: scale(0.4); opacity: 0.3; }
-                        40% { transform: scale(1); opacity: 1; }
-                    }
-
-                    /* 2. Overwrite the Chat Input Send Button specifically while processing */
-                    button[data-testid="stChatInputSubmitButton"] svg {
-                        display: none !important;
-                    }
-                    button[data-testid="stChatInputSubmitButton"]::after {
-                        content: "■";
-                        color: #ff4b4b !important;
-                        font-size: 1.6rem;
-                        position: absolute;
-                        top: 50%;
-                        left: 50%;
-                        transform: translate(-50%, -50%);
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                    }
-                </style>
-                <div class="chat-processing">
-                    <span></span><span></span><span></span>
-                </div>
-            """, unsafe_allow_html=True)
-            
             response_stream = None
             successful_model_name = None
             last_exception = None
 
-            # Build prompt payload
             if prompt_parts:
                 prompt_parts.append(active_prompt)
                 prompt_payload = prompt_parts
             else:
                 prompt_payload = active_prompt
 
-            # Execute Multi-Tier Fallback Request
             for model_id in candidates:
                 try:
                     chat = client.chats.create(
@@ -620,9 +572,6 @@ if active_prompt:
                 except Exception as model_err:
                     last_exception = model_err
                     continue
-            
-            # --- REMOVE UI INJECTION (Restores Send Button & Removes Dots) ---
-            loading_ui.empty()
 
             if response_stream is None:
                 raise last_exception or Exception("Unable to connect to selected Gemini model tier with the provided API Key.")
@@ -647,16 +596,15 @@ if active_prompt:
             
             save_data()
 
-    # =====================================================================
-    # GRACEFUL ERROR HANDLING: Replaces standard 503/High Demand errors
-    # =====================================================================
     except Exception as e:
-        # Failsafe UI clear just in case the execution crashed prior to empty()
-        if 'loading_ui' in locals():
-            loading_ui.empty()
-            
         error_str = str(e).lower()
         if "503" in error_str or "unavailable" in error_str or "high demand" in error_str:
             st.info("🚦 **Heavy Traffic Detected:** The AI model is currently experiencing high demand. Please wait a few seconds and try clicking your prompt from the 'Recent Questions' menu to try again.")
         else:
             st.error(f"Oops! Something went wrong: {str(e)}")
+
+    # =====================================================================
+    # DEACTIVATE GENERATION STATE (Restores send button back to normal)
+    # =====================================================================
+    st.session_state.is_generating = False
+    st.rerun()
