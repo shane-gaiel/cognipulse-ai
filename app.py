@@ -84,7 +84,7 @@ if "initialized" not in st.session_state:
     st.session_state.initialized = True
 
 # -------------------------------------------------------------
-# 4. Custom Responsive UI Styling & Global Send-Button Modifier
+# 4. Custom Responsive UI Styling & Clean Send-Button/Popup Modifier
 # -------------------------------------------------------------
 is_gen = st.session_state.get("is_generating", False)
 
@@ -108,45 +108,17 @@ st.markdown(f"""
     /* Padding adjustment so body elements clear the fixed app bar */
     .main .block-container {{ 
         padding-top: 4.5rem !important; 
-        padding-bottom: 3rem; 
+        padding-bottom: 4rem; 
         max-width: 1200px;
     }}
 
-    /* Hide the default Streamlit processing runner icon */
-    [data-testid="stStatusWidget"] label,
-    [data-testid="stStatusWidget"] p,
-    [data-testid="stStatusWidget"] img,
-    [data-testid="stStatusWidget"] svg,
-    [data-testid="stStatusWidget"] small {{
-        display: none !important;
-    }}
-
-    /* Style the top right 'Stop' button into a sleek '■' icon */
-    [data-testid="stStatusWidget"] button {{
-        color: transparent !important;
-        background-color: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
-        position: relative;
-        width: 32px !important;
-        height: 32px !important;
-    }}
-    
-    [data-testid="stStatusWidget"] button::after {{
-        content: "■";
-        color: #ff4b4b;
-        font-size: 1.6rem;
-        position: absolute;
-        left: 50%;
-        top: 50%;
-        transform: translate(-50%, -50%);
-        display: flex;
-        align-items: center;
-        justify-content: center;
+    /* Optimize chat input positioning and prevent popup layout overlap */
+    [data-testid="stChatInput"] {{
+        bottom: 1rem !important;
     }}
 
     /* ===================================================================== */
-    /* DYNAMIC SEND BUTTON MODIFIER: Replaces send icon inside the button    */
+    /* DYNAMIC SEND BUTTON MODIFIER: Toggles to red ■ ONLY on send button   */
     /* ===================================================================== */
     {"button[data-testid='stChatInputSubmitButton'] { position: relative !important; }" if is_gen else ""}
     {"button[data-testid='stChatInputSubmitButton'] svg { display: none !important; }" if is_gen else ""}
