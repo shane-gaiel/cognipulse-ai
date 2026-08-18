@@ -109,6 +109,74 @@ st.markdown("""
         max-width: 1200px;
     }
 
+    /* ========================================================= */
+    /* UI FIX: Hide Native Running Widget & Replace Stop Button  */
+    /* ========================================================= */
+    
+    /* 1. Hide the default Streamlit processing 'Running...' text and runner icon */
+    [data-testid="stStatusWidget"] label,
+    [data-testid="stStatusWidget"] p,
+    [data-testid="stStatusWidget"] img,
+    [data-testid="stStatusWidget"] svg,
+    [data-testid="stStatusWidget"] small {
+        display: none !important;
+    }
+
+    /* 2. Style the 'Stop' button into a sleek '■' icon to prevent overlap */
+    [data-testid="stStatusWidget"] button {
+        color: transparent !important;
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        position: relative;
+        width: 32px !important;
+        height: 32px !important;
+    }
+    
+    [data-testid="stStatusWidget"] button::after {
+        content: "■";
+        color: #ff4b4b; /* Vibrant Red Stop */
+        font-size: 1.6rem;
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.15s ease-in-out;
+    }
+    [data-testid="stStatusWidget"] button:hover::after {
+        transform: translate(-50%, -50%) scale(1.15);
+    }
+
+    /* ========================================================= */
+    /* UI ADDITION: Custom Chat Processing Animation             */
+    /* ========================================================= */
+    .chat-processing {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 12px;
+        border-radius: 8px;
+    }
+    .chat-processing span {
+        width: 8px;
+        height: 8px;
+        background-color: var(--primary-color, #ff4b4b);
+        border-radius: 50%;
+        animation: pulse 1.4s infinite ease-in-out both;
+    }
+    .chat-processing span:nth-child(1) { animation-delay: -0.32s; }
+    .chat-processing span:nth-child(2) { animation-delay: -0.16s; }
+    
+    @keyframes pulse {
+        0%, 80%, 100% { transform: scale(0.4); opacity: 0.3; }
+        40% { transform: scale(1); opacity: 1; }
+    }
+
+    /* ========================================================= */
+
     .dashboard-card {
         background: var(--secondary-background-color);
         color: var(--text-color);
@@ -499,40 +567,53 @@ if active_prompt:
         else:
             candidates = [st.session_state.selected_model]
 
-        response_stream = None
-        successful_model_name = None
-        last_exception = None
-
-        # Build prompt payload with attachments if available
-        if prompt_parts:
-            prompt_parts.append(active_prompt)
-            prompt_payload = prompt_parts
-        else:
-            prompt_payload = active_prompt
-
-        # Execute Multi-Tier Fallback Request
-        for model_id in candidates:
-            try:
-                chat = client.chats.create(
-                    model=model_id,
-                    config=types.GenerateContentConfig(
-                        system_instruction=SYSTEM_INSTRUCTION,
-                        temperature=0.2,
-                    ),
-                    history=history
-                )
-                response_stream = chat.send_message_stream(prompt_payload)
-                successful_model_name = model_id
-                st.session_state.last_working_model = model_id
-                break
-            except Exception as model_err:
-                last_exception = model_err
-                continue
-
-        if response_stream is None:
-            raise last_exception or Exception("Unable to connect to selected Gemini model tier with the provided API Key.")
-
+        # Initialize the bot chat message block to place loading animation and text
         with st.chat_message("assistant"):
+            
+            # --- SHOW CUSTOM PULSING DOTS ANIMATION ---
+            loading_placeholder = st.empty()
+            loading_placeholder.markdown("""
+                <div class="chat-processing">
+                    <span></span><span></span><span></span>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            response_stream = None
+            successful_model_name = None
+            last_exception = None
+
+            # Build prompt payload with attachments if available
+            if prompt_parts:
+                prompt_parts.append(active_prompt)
+                prompt_payload = prompt_parts
+            else:
+                prompt_payload = active_prompt
+
+            # Execute Multi-Tier Fallback Request
+            for model_id in candidates:
+                try:
+                    chat = client.chats.create(
+                        model=model_id,
+                        config=types.GenerateContentConfig(
+                            system_instruction=SYSTEM_INSTRUCTION,
+                            temperature=0.2,
+                        ),
+                        history=history
+                    )
+                    response_stream = chat.send_message_stream(prompt_payload)
+                    successful_model_name = model_id
+                    st.session_state.last_working_model = model_id
+                    break
+                except Exception as model_err:
+                    last_exception = model_err
+                    continue
+            
+            # --- REMOVE CUSTOM ANIMATION ONCE CONNECTION IS MADE ---
+            loading_placeholder.empty()
+
+            if response_stream is None:
+                raise last_exception or Exception("Unable to connect to selected Gemini model tier with the provided API Key.")
+
             def stream_generator():
                 for chunk in response_stream:
                     if chunk.text:
