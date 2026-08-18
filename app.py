@@ -6,7 +6,7 @@ from google.genai import types
 from streamlit_local_storage import LocalStorage
 
 # -------------------------------------------------------------
-# 1. Page Configuration (Must be first Streamlit command)
+# 1. Page Configuration
 # -------------------------------------------------------------
 st.set_page_config(
     page_title="CogniPulse AI Socratic Tutor",
@@ -17,10 +17,10 @@ st.set_page_config(
 
 # Initialize Browser LocalStorage
 localStorage = LocalStorage()
-SESSION_TIMEOUT_SECONDS = 3600  # 1 Hour timeout
+SESSION_TIMEOUT_SECONDS = 3600  # 1 Hour session window
 
 # -------------------------------------------------------------
-# 2. Local Storage Helpers (Device-Isolated Persistence)
+# 2. Local Storage & Persistence Helpers
 # -------------------------------------------------------------
 def load_save_data():
     try:
@@ -35,6 +35,8 @@ def save_data():
     try:
         data = {
             "api_key": st.session_state.get("api_key", ""),
+            "selected_model": st.session_state.get("selected_model", "gemini-2.5-flash"),
+            "custom_model": st.session_state.get("custom_model", ""),
             "messages": st.session_state.get("messages", []),
             "last_active": time.time(),
             "recent_questions": st.session_state.get("recent_questions", []),
@@ -49,18 +51,19 @@ def save_data():
         st.warning(f"Unable to auto-save session: {e}")
 
 # -------------------------------------------------------------
-# 3. State Initialization
+# 3. Session State Initialization
 # -------------------------------------------------------------
 if "initialized" not in st.session_state:
     saved = load_save_data()
     st.session_state.api_key = saved.get("api_key", "")
+    st.session_state.selected_model = saved.get("selected_model", "gemini-2.5-flash")
+    st.session_state.custom_model = saved.get("custom_model", "")
     st.session_state.recent_questions = saved.get("recent_questions", [])
     st.session_state.subject = saved.get("subject", "Physics & Mechanics")
     st.session_state.analogy_theme = saved.get("analogy_theme", "Battle Shonen Anime (Jujutsu Kaisen, Dragon Ball, Solo Leveling)")
     st.session_state.strictness = saved.get("strictness", "High (Strict Socratic)")
     st.session_state.detail_level = saved.get("detail_level", "Detailed & Step-by-Step")
     
-    # Session Timeout Check
     last_active = saved.get("last_active", 0)
     current_time = time.time()
     saved_messages = saved.get("messages", [])
@@ -70,52 +73,88 @@ if "initialized" not in st.session_state:
     else:
         st.session_state.messages = [{
             "role": "assistant", 
-            "content": f"Welcome back to **CogniPulse AI**! I'm calibrated for **{st.session_state.subject}**. What are we studying today?"
+            "content": f"Welcome back to **CogniPulse AI**! Calibrated for **{st.session_state.subject}**. What problem or concept are we breaking down today?"
         }]
         save_data()
         
     st.session_state.initialized = True
 
 # -------------------------------------------------------------
-# 4. Fluid UI Styling & CSS
+# 4. Premium Responsive UI Styling & Custom CSS
 # -------------------------------------------------------------
 st.markdown("""
 <style>
-    .main .block-container { padding-top: 1.5rem; padding-bottom: 3rem; }
-    .dashboard-card {
-        background-color: var(--secondary-background-color);
-        color: var(--text-color);
-        border-radius: 12px;
-        padding: 18px 24px;
-        border-left: 6px solid var(--primary-color);
-        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-        margin-bottom: 20px;
-        transition: all 0.3s ease;
+    /* Main Layout Refinements */
+    .main .block-container { 
+        padding-top: 1.5rem; 
+        padding-bottom: 3rem; 
+        max-width: 1200px;
     }
-    .dashboard-card:hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(0,0,0,0.1); }
-    .highlight { color: var(--primary-color); font-weight: 600; }
 
+    /* Metric Cards Glassmorphism Grid */
+    .dashboard-card {
+        background: var(--secondary-background-color);
+        color: var(--text-color);
+        border-radius: 14px;
+        padding: 16px 20px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-left: 5px solid var(--primary-color);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+        transition: all 0.25s ease-in-out;
+    }
+    .dashboard-card:hover { 
+        transform: translateY(-2px); 
+        box-shadow: 0 8px 20px rgba(0,0,0,0.12); 
+    }
+    .card-title {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        opacity: 0.7;
+        margin-bottom: 4px;
+        font-weight: 600;
+    }
+    .card-value {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: var(--primary-color);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* Creator Signature Footer */
     .credits-footer {
-        margin-top: 30px;
-        padding: 20px 15px;
-        background-color: var(--secondary-background-color);
+        margin-top: 25px;
+        padding: 18px 14px;
+        background: var(--secondary-background-color);
         border-radius: 12px;
         text-align: center;
-        border-bottom: 4px solid var(--primary-color);
+        border-bottom: 3px solid var(--primary-color);
     }
     .contact-btn {
         display: inline-block;
-        margin-top: 12px;
-        padding: 8px 16px;
+        margin-top: 10px;
+        padding: 8px 18px;
         background-color: var(--primary-color);
         color: #ffffff !important;
         text-decoration: none;
         border-radius: 20px;
         font-size: 0.85rem;
-        font-weight: bold;
-        transition: all 0.3s ease;
+        font-weight: 600;
+        transition: all 0.25s ease;
     }
-    .contact-btn:hover { filter: brightness(1.1); transform: translateY(-2px); }
+    .contact-btn:hover { 
+        filter: brightness(1.15); 
+        transform: translateY(-1px); 
+    }
+
+    /* Chat Styling Enhancements */
+    .stChatMessage {
+        border-radius: 12px;
+        padding: 12px;
+        margin-bottom: 8px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -125,10 +164,10 @@ st.markdown("""
 with st.sidebar:
     st.title("⚙️ Control Panel")
     
-    # API Key Handling
+    # --- API Key Management ---
     if not st.session_state.api_key:
-        st.info("Enter Your API Key.")
-        st.markdown("<div style='font-size: 0.85rem; margin-bottom: 10px;'>Don't have an API Key? Get one from an AI API Source <a href='https://aistudio.google.com/app/apikey' target='_blank'>here</a>.</div>", unsafe_allow_html=True)
+        st.info("🔑 Enter Your API Key")
+        st.markdown("<div style='font-size: 0.82rem; margin-bottom: 10px;'>Get your free Gemini API key from <a href='https://aistudio.google.com/app/apikey' target='_blank'>Google AI Studio</a>.</div>", unsafe_allow_html=True)
         input_key = st.text_input("Gemini API Key:", type="password")
         if st.button("🔒 Lock In Key", use_container_width=True, type="primary"):
             if input_key.strip():
@@ -136,15 +175,41 @@ with st.sidebar:
                 save_data()
                 st.rerun()
     else:
-        st.success("✅ API Key Locked & Saved")
-        if st.button("🔑 Clear Saved Key", use_container_width=True):
+        st.success("✅ API Key Active")
+        if st.button("🔑 Change API Key", use_container_width=True):
             st.session_state.api_key = ""
             save_data()
             st.rerun()
             
     st.divider()
 
-    # Core AI Configurations
+    # --- Multi-Model Support Hub ---
+    st.subheader("🤖 AI Model Engine")
+    model_options = [
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
+        "gemini-1.5-pro",
+        "Custom Model ID"
+    ]
+    
+    selected_m = st.selectbox(
+        "Select Active Engine",
+        model_options,
+        key="selected_model",
+        on_change=save_data
+    )
+    
+    if selected_m == "Custom Model ID":
+        st.text_input(
+            "Enter Model String (e.g. gemini-3.6-flash):",
+            key="custom_model",
+            on_change=save_data
+        )
+
+    st.divider()
+
+    # --- Subject & Analogy Theme Engine ---
     st.subheader("📚 Subject & Context")
     st.selectbox(
         "Current Subject",
@@ -174,6 +239,7 @@ with st.sidebar:
     
     st.divider()
     
+    # --- Guardrail Controls ---
     st.subheader("🛡️ AI Guardrails")
     st.select_slider(
         "Anti-Cheat Strictness",
@@ -190,7 +256,21 @@ with st.sidebar:
         on_change=save_data
     )
 
-    if st.button("🗑️ Clear Current Session Chat", use_container_width=True):
+    st.divider()
+
+    # --- Session & Export Tools ---
+    st.subheader("💾 Session Tools")
+    
+    chat_export = "\n\n".join([f"### {m['role'].capitalize()}\n{m['content']}" for m in st.session_state.get('messages', [])])
+    st.download_button(
+        label="📥 Export Session Notes (.md)",
+        data=chat_export,
+        file_name=f"CogniPulse_{st.session_state.get('subject', 'Session').replace(' ', '_')}_Notes.md",
+        mime="text/markdown",
+        use_container_width=True
+    )
+
+    if st.button("🗑️ Clear Chat Session", use_container_width=True):
         st.session_state.messages = [{
             "role": "assistant", 
             "content": f"Chat cleared. What are we studying in **{st.session_state.subject}** today?"
@@ -200,12 +280,10 @@ with st.sidebar:
 
     st.divider()
     
-    # -------------------------------------------------------------
-    # 6. Interactive Recent Questions Center (Q&A Recall)
-    # -------------------------------------------------------------
+    # --- Interactive Recent Questions Recall ---
     st.subheader("🕒 Recent Questions Center")
     if st.session_state.recent_questions:
-        st.caption("Click any past topic to restore the question and AI answer:")
+        st.caption("Click any topic to recall the prompt:")
         recent_list = list(reversed(st.session_state.recent_questions))[:5]
         
         for idx, item in enumerate(recent_list):
@@ -224,84 +302,101 @@ with st.sidebar:
     else:
         st.caption("No recent questions logged yet.")
 
-    # -------------------------------------------------------------
-    # Creator Credits Footer
-    # -------------------------------------------------------------
+    # --- Author Attribution ---
     st.markdown("""
     <div class="credits-footer">
         <span style="font-size: 0.8rem; opacity: 0.7;">Project created by</span><br>
-        <span style="font-weight: 700; font-size: 1.15rem; letter-spacing: 0.5px;">Shane Gaiel</span><br>
+        <span style="font-weight: 700; font-size: 1.1rem; letter-spacing: 0.5px;">Shane Gaiel</span><br>
         <a href="https://linktr.ee/shane.gaiel" target="_blank" class="contact-btn">Contact me on Linktree</a>
     </div>
     """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 7. Main UI Layout & Dashboard
+# 6. Main Header & Dynamic Dashboard
 # -------------------------------------------------------------
 st.title("🧠 CogniPulse AI")
 
-col1, col2, col3 = st.columns(3)
+# Resolve Active Model Target
+if st.session_state.selected_model == "Custom Model ID":
+    active_model_name = st.session_state.custom_model.strip() if st.session_state.custom_model.strip() else "gemini-2.5-flash"
+else:
+    active_model_name = st.session_state.selected_model
+
+col1, col2, col3, col4 = st.columns(4)
 with col1:
     st.markdown(f"""
     <div class="dashboard-card">
-        <div><small>ACTIVE SUBJECT</small></div>
-        <div class="highlight" style="font-size: 1.2rem;">{st.session_state.subject}</div>
+        <div class="card-title">Active Subject</div>
+        <div class="card-value">{st.session_state.subject}</div>
     </div>
     """, unsafe_allow_html=True)
+
 with col2:
     theme_display = st.session_state.analogy_theme.split(' (')[0]
     st.markdown(f"""
     <div class="dashboard-card">
-        <div><small>ANALOGY ENGINE</small></div>
-        <div class="highlight" style="font-size: 1.2rem;">{theme_display}</div>
+        <div class="card-title">Analogy Engine</div>
+        <div class="card-value">{theme_display}</div>
     </div>
     """, unsafe_allow_html=True)
+
 with col3:
+    st.markdown(f"""
+    <div class="dashboard-card">
+        <div class="card-title">AI Model Target</div>
+        <div class="card-value">{active_model_name}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col4:
     turn_count = len(st.session_state.get('messages', [])) // 2
     st.markdown(f"""
     <div class="dashboard-card">
-        <div><small>SESSION TURNS</small></div>
-        <div class="highlight" style="font-size: 1.2rem;">{turn_count} Interactions</div>
+        <div class="card-title">Session Turns</div>
+        <div class="card-value">{turn_count} Turns</div>
     </div>
     """, unsafe_allow_html=True)
 
+st.write("")
+
 # -------------------------------------------------------------
-# 8. Dynamic Prompt Engineering & Math Accuracy Engine
+# 7. Optimized System Instructions & Socratic Guardrails
 # -------------------------------------------------------------
 if "None" in st.session_state.strictness:
-    guardrail_instructions = "CORE RULE: PROVIDE DIRECT ANSWERS AND FULL SOLUTIONS IMMEDIATELY. Do not hold back."
+    guardrail_instructions = "CORE RULE: Provide immediate direct answers and complete mathematical step-by-step solutions."
 elif "Low" in st.session_state.strictness:
-    guardrail_instructions = "CORE RULE: Give the direct answer first, then provide a brief step-by-step breakdown."
+    guardrail_instructions = "CORE RULE: Give the core direct answer first, followed by a concise breakdown."
 elif "Medium" in st.session_state.strictness:
-    guardrail_instructions = "CORE RULE: Start with a clear hint. If the user asks again, give the answer directly."
+    guardrail_instructions = "CORE RULE: Offer targeted hints first. If asked again, provide full direct resolution."
 else:  
-    guardrail_instructions = "CORE RULE: NEVER provide direct answers to homework. Guide the student step-by-step using targeted questions."
+    guardrail_instructions = "CORE RULE: Strict Socratic Method. Do not give away final numeric answers immediately. Ask guiding questions to lead the user to self-discovery."
 
 SYSTEM_INSTRUCTION = f"""
-You are CogniPulse, an advanced AI Study Assistant.
-Subject context: {st.session_state.subject}.
-Analogy thematic style: {st.session_state.analogy_theme}.
-Depth requirement: {st.session_state.detail_level}.
+You are CogniPulse, an elite AI Study Assistant and Socratic Tutor.
+Subject Domain: {st.session_state.subject}.
+Analogy Theme Engine: {st.session_state.analogy_theme}.
+Explanation Depth Preference: {st.session_state.detail_level}.
 
 {guardrail_instructions}
 
-MATHEMATICAL EQUATIONS & CALCULATION ACCURACY RULE:
-- For any mathematical equation, arithmetic subtraction, addition, multiplication, or division, perform the math step-by-step independently BEFORE presenting the final answer.
-- Double-check every single column, digit carry/borrow, and calculation operation for 100% precision.
-- Keep standard Markdown text and headers strictly OUTSIDE of LaTeX math blocks ($$ or $).
+ACCURACY & TRUTH VERIFICATION MANDATE:
+1. Step-by-step mathematical calculations must be independently computed prior to stating final answers.
+2. Maintain rigorous conceptual accuracy and logical validation across all explanations.
+3. Keep standard Markdown text and section headers outside LaTeX blocks ($ or $$).
+4. Integrate vivid thematic analogies seamlessly when explaining complex mechanisms.
 """
 
-# Render Chat History
+# Render Active Chat Feed
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
 # -------------------------------------------------------------
-# 9. Trigger Handling & Response Generation
+# 8. High-Speed Real-Time Response Engine (Streaming)
 # -------------------------------------------------------------
 active_prompt = None
 
-chat_input_val = st.chat_input("Ask a question, request a concept explanation, or share a problem...")
+chat_input_val = st.chat_input("Ask a question, request a concept breakdown, or share a problem...")
 if chat_input_val:
     active_prompt = chat_input_val
 elif "selected_recent" in st.session_state and st.session_state.selected_recent:
@@ -310,7 +405,7 @@ elif "selected_recent" in st.session_state and st.session_state.selected_recent:
 
 if active_prompt:
     if not st.session_state.api_key:
-        st.warning("⚠️ Please enter and lock in your Gemini API key in the sidebar first!")
+        st.warning("⚠️ Please enter and lock in your Gemini API key in the sidebar control panel first.")
         st.stop()
 
     st.session_state.messages.append({"role": "user", "content": active_prompt})
@@ -322,6 +417,7 @@ if active_prompt:
     try:
         client = genai.Client(api_key=st.session_state.api_key)
         
+        # Build contextual history payload
         history = [
             types.Content(
                 role="user" if m["role"] == "user" else "model",
@@ -331,7 +427,7 @@ if active_prompt:
         ]
 
         chat = client.chats.create(
-            model="gemini-3.6-flash",
+            model=active_model_name,
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_INSTRUCTION,
                 temperature=0.2,
@@ -340,12 +436,20 @@ if active_prompt:
         )
 
         with st.chat_message("assistant"):
-            response = chat.send_message(active_prompt)
-            assistant_reply = response.text
-            st.markdown(assistant_reply)
+            # Real-time stream generation for immediate latency delivery
+            response_stream = chat.send_message_stream(active_prompt)
             
+            def stream_generator():
+                for chunk in response_stream:
+                    if chunk.text:
+                        yield chunk.text
+                        
+            assistant_reply = st.write_stream(stream_generator)
+            
+            # Persist assistant response into conversation state
             st.session_state.messages.append({"role": "assistant", "content": assistant_reply})
             
+            # Log question recall center item
             st.session_state.recent_questions = [
                 item for item in st.session_state.recent_questions 
                 if (item.get("q") if isinstance(item, dict) else item) != active_prompt
@@ -358,4 +462,4 @@ if active_prompt:
             save_data()
 
     except Exception as e:
-        st.error(f"Error communicating with AI: {e}")
+        st.error(f"Error communicating with AI engine ({active_model_name}): {e}")
