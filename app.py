@@ -84,33 +84,14 @@ if "initialized" not in st.session_state:
     st.session_state.initialized = True
 
 # -------------------------------------------------------------
-# 4. Custom Responsive UI Styling & Smart Floating Scroll Button
+# 4. Custom Responsive UI Styling & Header Cleaner
 # -------------------------------------------------------------
-if st.session_state.get("is_generating", False):
-    st.markdown("""
-    <style>
-        button[data-testid='stChatInputSubmitButton'] { position: relative !important; }
-        button[data-testid='stChatInputSubmitButton'] svg { display: none !important; }
-        button[data-testid='stChatInputSubmitButton']::after { 
-            content: '■' !important; 
-            color: #ff4b4b !important; 
-            font-size: 1.2rem !important; 
-            position: absolute !important; 
-            top: 0 !important; 
-            left: 0 !important; 
-            width: 100% !important; 
-            height: 100% !important; 
-            display: flex !important; 
-            align-items: center !important; 
-            justify-content: center !important; 
-        }
-    </style>
-    """, unsafe_allow_html=True)
+is_gen = st.session_state.get("is_generating", False)
 
-st.markdown("""
+st.markdown(f"""
 <style>
     /* Embed CogniPulse AI directly into Streamlit's sticky top navbar */
-    header[data-testid="stHeader"]::before {
+    header[data-testid="stHeader"]::before {{
         content: "🧠 CogniPulse AI";
         font-size: 1.25rem;
         font-weight: 800;
@@ -122,63 +103,43 @@ st.markdown("""
         white-space: nowrap;
         z-index: 999999;
         pointer-events: none;
-    }
+    }}
 
     /* Padding adjustment so body elements clear the fixed app bar */
-    .main .block-container { 
+    .main .block-container {{ 
         padding-top: 4.5rem !important; 
-        padding-bottom: 5rem; 
+        padding-bottom: 4rem; 
         max-width: 1200px;
-    }
+    }}
 
     /* Completely hide Streamlit's default header stop button and status widget */
     header [data-testid="stStatusWidget"],
     [data-testid="stStatusWidget"],
     .stStatusWidget,
     header button:not([aria-label]):not([class]),
-    header button[title*="Stop"] {
+    header button[title*="Stop"] {{
         display: none !important;
         visibility: hidden !important;
         opacity: 0 !important;
         pointer-events: none !important;
         width: 0 !important;
         height: 0 !important;
-    }
+    }}
 
     /* Optimize chat input positioning and prevent layout overlap */
-    [data-testid="stChatInput"] {
+    [data-testid="stChatInput"] {{
         bottom: 1rem !important;
-    }
+    }}
 
     /* ===================================================================== */
-    /* FLOATING SCROLL-TO-BOTTOM ARROW BUTTON (Hidden by default)           */
+    /* DYNAMIC SEND BUTTON MODIFIER: Toggles to red ■ ONLY on send button   */
     /* ===================================================================== */
-    .scroll-down-btn {
-        position: fixed;
-        bottom: 5.5rem;
-        right: 2rem;
-        background-color: rgba(40, 40, 40, 0.85);
-        color: #ffffff;
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        border-radius: 50%;
-        width: 42px;
-        height: 42px;
-        display: none; /* Hidden until scrolled up */
-        align-items: center;
-        justify-content: center;
-        font-size: 1.3rem;
-        cursor: pointer;
-        box-shadow: 0 4px 14px rgba(0,0,0,0.35);
-        z-index: 999999;
-        transition: all 0.2s ease;
-    }
-    .scroll-down-btn:hover {
-        background-color: var(--primary-color, #ff4b4b);
-        transform: scale(1.1);
-    }
+    {"button[data-testid='stChatInputSubmitButton'] { position: relative !important; }" if is_gen else ""}
+    {"button[data-testid='stChatInputSubmitButton'] svg { display: none !important; }" if is_gen else ""}
+    {"button[data-testid='stChatInputSubmitButton']::after { content: '■' !important; color: #ff4b4b !important; font-size: 1.2rem !important; position: absolute !important; top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important; display: flex !important; align-items: center !important; justify-content: center !important; }" if is_gen else ""}
 
     /* Custom Styling for Dashboard Elements */
-    .dashboard-card {
+    .dashboard-card {{
         background: var(--secondary-background-color);
         color: var(--text-color);
         border-radius: 14px;
@@ -187,37 +148,37 @@ st.markdown("""
         border-left: 5px solid var(--primary-color);
         box-shadow: 0 4px 12px rgba(0,0,0,0.06);
         transition: all 0.25s ease-in-out;
-    }
-    .dashboard-card:hover { 
+    }}
+    .dashboard-card:hover {{ 
         transform: translateY(-2px); 
         box-shadow: 0 8px 20px rgba(0,0,0,0.12); 
-    }
-    .card-title {
+    }}
+    .card-title {{
         font-size: 0.75rem;
         text-transform: uppercase;
         letter-spacing: 0.8px;
         opacity: 0.7;
         margin-bottom: 4px;
         font-weight: 600;
-    }
-    .card-value {
+    }}
+    .card-value {{
         font-size: 1.15rem;
         font-weight: 700;
         color: var(--primary-color);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-    }
+    }}
 
-    .credits-footer {
+    .credits-footer {{
         margin-top: 25px;
         padding: 18px 14px;
         background: var(--secondary-background-color);
         border-radius: 12px;
         text-align: center;
         border-bottom: 3px solid var(--primary-color);
-    }
-    .contact-btn {
+    }}
+    .contact-btn {{
         display: inline-block;
         margin-top: 10px;
         padding: 8px 18px;
@@ -228,68 +189,18 @@ st.markdown("""
         font-size: 0.85rem;
         font-weight: 600;
         transition: all 0.25s ease;
-    }
-    .contact-btn:hover { 
+    }}
+    .contact-btn:hover {{ 
         filter: brightness(1.15); 
         transform: translateY(-1px); 
-    }
+    }}
 
-    .stChatMessage {
+    .stChatMessage {{
         border-radius: 12px;
         padding: 12px;
         margin-bottom: 8px;
-    }
+    }}
 </style>
-
-<!-- Floating Scroll-to-Bottom Button Widget -->
-<div class="scroll-down-btn" id="scrollDownBtn" title="Jump to bottom" onclick="
-    const doc = window.parent.document;
-    const mainContainer = doc.querySelector('section.main');
-    if (mainContainer) {
-        mainContainer.scrollTo({ top: mainContainer.scrollHeight, behavior: 'smooth' });
-    }
-    window.parent.scrollTo({ top: doc.body.scrollHeight, behavior: 'smooth' });
-    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-">
-    ↓
-</div>
-
-<script>
-    (function() {
-        const doc = window.parent.document;
-        function initScrollWatcher() {
-            const scrollBtn = doc.getElementById('scrollDownBtn');
-            const mainContainer = doc.querySelector('section.main') || doc.documentElement;
-            
-            if (scrollBtn && mainContainer) {
-                const checkPosition = () => {
-                    const st = mainContainer.scrollTop || doc.documentElement.scrollTop || doc.body.scrollTop;
-                    const sh = mainContainer.scrollHeight || doc.documentElement.scrollHeight || doc.body.scrollHeight;
-                    const ch = mainContainer.clientHeight || window.innerHeight;
-                    
-                    const distanceFromBottom = sh - (st + ch);
-                    
-                    // Show arrow when scrolled up more than 200px into previous chats
-                    if (distanceFromBottom > 200) {
-                        scrollBtn.style.display = 'flex';
-                    } else {
-                        scrollBtn.style.display = 'none';
-                    }
-                };
-
-                mainContainer.removeEventListener('scroll', checkPosition);
-                mainContainer.addEventListener('scroll', checkPosition);
-                doc.removeEventListener('scroll', checkPosition);
-                doc.addEventListener('scroll', checkPosition, true);
-                
-                checkPosition();
-            }
-        }
-
-        setTimeout(initScrollWatcher, 400);
-        setTimeout(initScrollWatcher, 1200);
-    })();
-</script>
 """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------
