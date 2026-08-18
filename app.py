@@ -84,7 +84,7 @@ if "initialized" not in st.session_state:
     st.session_state.initialized = True
 
 # -------------------------------------------------------------
-# 4. Custom Responsive UI Styling & Clean Send-Button/Popup Modifier
+# 4. Custom Responsive UI Styling & Header Stop Button Remover
 # -------------------------------------------------------------
 is_gen = st.session_state.get("is_generating", False)
 
@@ -112,7 +112,21 @@ st.markdown(f"""
         max-width: 1200px;
     }}
 
-    /* Optimize chat input positioning and prevent popup layout overlap */
+    /* Completely hide Streamlit's default header stop button and status widget */
+    header [data-testid="stStatusWidget"],
+    [data-testid="stStatusWidget"],
+    .stStatusWidget,
+    header button:not([aria-label]):not([class]),
+    header button[title*="Stop"] {{
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        width: 0 !important;
+        height: 0 !important;
+    }}
+
+    /* Optimize chat input positioning and prevent layout overlap */
     [data-testid="stChatInput"] {{
         bottom: 1rem !important;
     }}
@@ -474,7 +488,7 @@ if active_prompt:
     st.session_state.is_generating = True
     st.rerun()
 
-# Execute generation if flagged
+# Execute generation if flagged with Robust Multi-Model Fallback
 if st.session_state.get("is_generating", False):
     active_prompt = st.session_state.messages[-1]["content"] if st.session_state.messages else ""
     
@@ -517,8 +531,7 @@ if st.session_state.get("is_generating", False):
             candidates = [st.session_state.selected_model]
 
         with st.chat_message("assistant"):
-            response_stream = None
-            successful_model_name = None
+            assistant_reply = None
             last_exception = None
 
             if prompt_parts:
@@ -527,6 +540,7 @@ if st.session_state.get("is_generating", False):
             else:
                 prompt_payload = active_prompt
 
+            # Loop through candidate models with silent fallback for 503 / High Demand errors
             for model_id in candidates:
                 try:
                     chat = client.chats.create(
@@ -538,22 +552,25 @@ if st.session_state.get("is_generating", False):
                         history=history
                     )
                     response_stream = chat.send_message_stream(prompt_payload)
-                    successful_model_name = model_id
+
+                    def stream_generator():
+                        for chunk in response_stream:
+                            if chunk.text:
+                                yield chunk.text
+
+                    assistant_reply = st.write_stream(stream_generator())
                     st.session_state.last_working_model = model_id
                     break
                 except Exception as model_err:
                     last_exception = model_err
-                    continue
+                    err_str = str(model_err).lower()
+                    if any(code in err_str for code in ["503", "unavailable", "resource_exhausted", "high demand", "quota"]):
+                        continue  # Silently try next fallback model
+                    else:
+                        raise model_err
 
-            if response_stream is None:
-                raise last_exception or Exception("Unable to connect to selected Gemini model tier with the provided API Key.")
-
-            def stream_generator():
-                for chunk in response_stream:
-                    if chunk.text:
-                        yield chunk.text
-                        
-            assistant_reply = st.write_stream(stream_generator)
+            if assistant_reply is None:
+                raise last_exception or Exception("All model tiers are currently experiencing heavy traffic. Please try again in a moment.")
             
             st.session_state.messages.append({"role": "assistant", "content": assistant_reply})
             
@@ -571,7 +588,7 @@ if st.session_state.get("is_generating", False):
     except Exception as e:
         error_str = str(e).lower()
         if "503" in error_str or "unavailable" in error_str or "high demand" in error_str:
-            st.info("🚦 **Heavy Traffic Detected:** The AI model is currently experiencing high demand. Please wait a few seconds and try clicking your prompt from the 'Recent Questions' menu to try again.")
+            st.info("🚦 **Heavy Traffic Detected:** The AI models are experiencing high demand. Please try clicking your question from the 'Recent Questions' menu in the sidebar to try again.")
         else:
             st.error(f"Oops! Something went wrong: {str(e)}")
 
