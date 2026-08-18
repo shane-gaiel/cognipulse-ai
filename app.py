@@ -17,12 +17,16 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Initialize Browser LocalStorage
-localStorage = LocalStorage()
+# Initialize Browser LocalStorage Safely
+try:
+    localStorage = LocalStorage()
+except Exception:
+    localStorage = None
+
 SESSION_TIMEOUT_SECONDS = 3600  # 1 Hour session window
 
 # -------------------------------------------------------------
-# 2. Local Storage Saving Helpers
+# 2. Local Storage Saving Helpers (Bulletproof)
 # -------------------------------------------------------------
 def mark_for_save():
     """Sets a flag to safely trigger a save during the main script run."""
@@ -30,6 +34,8 @@ def mark_for_save():
 
 def execute_save():
     """Writes the current state to browser local storage safely."""
+    if localStorage is None:
+        return
     try:
         data = {
             "api_key": st.session_state.get("api_key", ""),
@@ -43,15 +49,33 @@ def execute_save():
             "strictness": st.session_state.get("strictness", "High (Strict Socratic)"),
             "detail_level": st.session_state.get("detail_level", "Detailed & Step-by-Step")
         }
-        # Static key prevents Streamlit from duplicating DOM elements on every save
-        localStorage.setItem("cognipulse_user_session", json.dumps(data), key="cognipulse_storage_writer")
-    except Exception as e:
-        st.warning(f"Unable to auto-save session: {e}")
+        
+        data_str = json.dumps(data)
+        
+        # Try writing with a key (required by newer library versions)
+        try:
+            localStorage.setItem("cognipulse_user_session", data_str, key="ls_write_key")
+        except TypeError:
+            # Fallback for older library versions that throw TypeError for unknown kwargs
+            localStorage.setItem("cognipulse_user_session", data_str)
+            
+    except Exception:
+        pass # Fail silently to prevent crashing the UI
 
 # -------------------------------------------------------------
 # 3. Session State Initialization & Data Restoration
 # -------------------------------------------------------------
-saved_str = localStorage.getItem("cognipulse_user_session", key="cognipulse_storage_reader")
+saved_data = None
+if localStorage is not None:
+    try:
+        # Try reading with a key
+        try:
+            saved_data = localStorage.getItem("cognipulse_user_session", key="ls_read_key")
+        except TypeError:
+            # Fallback for older library versions
+            saved_data = localStorage.getItem("cognipulse_user_session")
+    except Exception:
+        pass
 
 # Step A: Initialize defaults on the very first script run
 if "initialized" not in st.session_state:
@@ -76,9 +100,14 @@ if "initialized" not in st.session_state:
     st.session_state.ls_loaded = False 
 
 # Step B: Inject LocalStorage data once the component returns it
-if saved_str and not st.session_state.ls_loaded:
+if saved_data and not st.session_state.ls_loaded:
     try:
-        saved = json.loads(saved_str)
+        # Prevent TypeError if the library automatically parsed the JSON into a dictionary
+        if isinstance(saved_data, dict):
+            saved = saved_data
+        else:
+            saved = json.loads(saved_data)
+            
         st.session_state.api_key = saved.get("api_key", st.session_state.api_key)
         st.session_state.selected_model = saved.get("selected_model", st.session_state.selected_model)
         st.session_state.custom_model = saved.get("custom_model", st.session_state.custom_model)
