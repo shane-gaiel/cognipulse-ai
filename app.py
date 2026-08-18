@@ -39,7 +39,7 @@ def execute_save():
     try:
         data = {
             "api_key": st.session_state.get("api_key", ""),
-            "selected_model": st.session_state.get("selected_model", "Auto-Select (Flash & Pro Engine)"),
+            "selected_model": st.session_state.get("selected_model", "Auto-Select (Dynamic API Detection)"),
             "custom_model": st.session_state.get("custom_model", ""),
             "messages": st.session_state.get("messages", []),
             "last_active": time.time(),
@@ -74,7 +74,7 @@ if localStorage is not None:
 # Step A: Initialize defaults on the very first script run
 if "initialized" not in st.session_state:
     st.session_state.api_key = ""
-    st.session_state.selected_model = "Auto-Select (Flash & Pro Engine)"
+    st.session_state.selected_model = "Auto-Select (Dynamic API Detection)"
     st.session_state.custom_model = ""
     st.session_state.recent_questions = []
     st.session_state.subject = "Physics & Mechanics"
@@ -263,7 +263,7 @@ with st.sidebar:
 
     st.subheader("🤖 AI Model Engine")
     model_options = [
-        "Auto-Select (Flash & Pro Engine)",
+        "Auto-Select (Dynamic API Detection)",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.0-flash",
@@ -280,7 +280,7 @@ with st.sidebar:
         on_change=mark_for_save
     )
     
-    st.caption("💡 *Note: Selected model must match your API key permissions. If unsure, set to **Auto-Select**.*")
+    st.caption("💡 *Note: When set to **Auto-Select**, the app queries your API key directly to discover supported models.*")
     
     if selected_m == "Custom Model ID":
         st.text_input(
@@ -518,7 +518,7 @@ if active_prompt:
     st.rerun()
 
 # -------------------------------------------------------------
-# 9. Execution Block (With Strict History Sanitization)
+# 9. Execution Block (Dynamic API Model Discovery & History Sanitization)
 # -------------------------------------------------------------
 if st.session_state.get("is_generating", False):
     active_prompt = st.session_state.messages[-1]["content"] if st.session_state.messages else ""
@@ -556,15 +556,30 @@ if st.session_state.get("is_generating", False):
                 )
                 expected_role = "model" if expected_role == "user" else "user"
 
+        # DYNAMIC API MODEL DISCOVERY
         if st.session_state.selected_model.startswith("Auto-Select"):
-            candidates = [
-                "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"
-            ]
+            try:
+                discovered_models = []
+                for model_obj in client.models.list():
+                    methods = getattr(model_obj, "supported_generation_methods", [])
+                    if not methods or "generateContent" in methods:
+                        m_name = model_obj.name
+                        if m_name.startswith("models/"):
+                            m_name = m_name[7:]
+                        discovered_models.append(m_name)
+                
+                if discovered_models:
+                    discovered_models.sort(key=lambda x: (0 if "flash" in x else (1 if "pro" in x else 2)))
+                    candidates = discovered_models
+                else:
+                    candidates = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
+            except Exception:
+                candidates = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-pro", "gemini-1.5-flash"]
         elif st.session_state.selected_model == "Custom Model ID":
             custom_val = st.session_state.custom_model.strip()
-            candidates = [custom_val] if custom_val else ["gemini-2.5-pro", "gemini-2.5-flash"]
+            candidates = [custom_val] if custom_val else ["gemini-2.0-flash", "gemini-1.5-flash"]
         else:
-            candidates = [st.session_state.selected_model]
+            candidates = [st.session_state.selected_model, "gemini-2.0-flash", "gemini-1.5-flash"]
 
         with st.chat_message("assistant"):
             assistant_reply = None
@@ -605,7 +620,7 @@ if st.session_state.get("is_generating", False):
                         raise model_err
 
             if assistant_reply is None:
-                raise last_exception or Exception("All model tiers are currently unavailable or not found. Please check your selected model or API key permissions.")
+                raise last_exception or Exception("All discovered model tiers are currently unavailable or not found. Please check your API key permissions.")
             
             st.session_state.messages.append({"role": "assistant", "content": assistant_reply})
             
@@ -623,7 +638,7 @@ if st.session_state.get("is_generating", False):
     except Exception as e:
         error_str = str(e).lower()
         if "404" in error_str or "not_found" in error_str:
-            st.error(f"⚠️ **Model Not Found Error:** The requested model is not supported by your API key or endpoint. Try switching your AI Model Engine in the sidebar to **Auto-Select** or a verified model like `gemini-2.5-flash`.")
+            st.error(f"⚠️ **Model Discovery Error:** No supported text models were found for your API key. Please check your API key permissions or enter a custom model ID in the sidebar.")
         elif "503" in error_str or "unavailable" in error_str:
             st.info("🚦 **Heavy Traffic Detected:** The AI models are experiencing high demand. Please try again.")
         else:
