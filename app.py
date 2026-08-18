@@ -88,30 +88,31 @@ if "initialized" not in st.session_state:
 # -------------------------------------------------------------
 is_gen = st.session_state.get("is_generating", False)
 
-is_gen_css = ""
 if is_gen:
-    is_gen_css = """
-    button[data-testid='stChatInputSubmitButton'] { position: relative !important; }
-    button[data-testid='stChatInputSubmitButton'] svg { display: none !important; }
-    button[data-testid='stChatInputSubmitButton']::after { 
-        content: '■' !important; 
-        color: #ff4b4b !important; 
-        font-size: 1.2rem !important; 
-        position: absolute !important; 
-        top: 0 !important; 
-        left: 0 !important; 
-        width: 100% !important; 
-        height: 100% !important; 
-        display: flex !important; 
-        align-items: center !important; 
-        justify-content: center !important; 
-    }
-    """
+    st.markdown("""
+    <style>
+        button[data-testid='stChatInputSubmitButton'] { position: relative !important; }
+        button[data-testid='stChatInputSubmitButton'] svg { display: none !important; }
+        button[data-testid='stChatInputSubmitButton']::after { 
+            content: '■' !important; 
+            color: #ff4b4b !important; 
+            font-size: 1.2rem !important; 
+            position: absolute !important; 
+            top: 0 !important; 
+            left: 0 !important; 
+            width: 100% !important; 
+            height: 100% !important; 
+            display: flex !important; 
+            align-items: center !important; 
+            justify-content: center !important; 
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
-st.markdown(f"""
+st.markdown("""
 <style>
     /* Embed CogniPulse AI directly into Streamlit's sticky top navbar */
-    header[data-testid="stHeader"]::before {{
+    header[data-testid="stHeader"]::before {
         content: "🧠 CogniPulse AI";
         font-size: 1.25rem;
         font-weight: 800;
@@ -123,38 +124,38 @@ st.markdown(f"""
         white-space: nowrap;
         z-index: 999999;
         pointer-events: none;
-    }}
+    }
 
     /* Padding adjustment so body elements clear the fixed app bar */
-    .main .block-container {{ 
+    .main .block-container { 
         padding-top: 4.5rem !important; 
         padding-bottom: 5rem; 
         max-width: 1200px;
-    }}
+    }
 
     /* Completely hide Streamlit's default header stop button and status widget */
     header [data-testid="stStatusWidget"],
     [data-testid="stStatusWidget"],
     .stStatusWidget,
     header button:not([aria-label]):not([class]),
-    header button[title*="Stop"] {{
+    header button[title*="Stop"] {
         display: none !important;
         visibility: hidden !important;
         opacity: 0 !important;
         pointer-events: none !important;
         width: 0 !important;
         height: 0 !important;
-    }}
+    }
 
     /* Optimize chat input positioning and prevent layout overlap */
-    [data-testid="stChatInput"] {{
+    [data-testid="stChatInput"] {
         bottom: 1rem !important;
-    }}
+    }
 
     /* ===================================================================== */
     /* FLOATING SCROLL-TO-BOTTOM ARROW BUTTON (Hidden by default)           */
     /* ===================================================================== */
-    .scroll-down-btn {{
+    .scroll-down-btn {
         position: fixed;
         bottom: 5.5rem;
         right: 2rem;
@@ -172,17 +173,14 @@ st.markdown(f"""
         box-shadow: 0 4px 14px rgba(0,0,0,0.35);
         z-index: 999999;
         transition: all 0.2s ease;
-    }}
-    .scroll-down-btn:hover {{
+    }
+    .scroll-down-btn:hover {
         background-color: var(--primary-color, #ff4b4b);
         transform: scale(1.1);
-    }}
-
-    /* Dynamic Send Button Modifiers */
-    {is_gen_css}
+    }
 
     /* Custom Styling for Dashboard Elements */
-    .dashboard-card {{
+    .dashboard-card {
         background: var(--secondary-background-color);
         color: var(--text-color);
         border-radius: 14px;
@@ -191,37 +189,37 @@ st.markdown(f"""
         border-left: 5px solid var(--primary-color);
         box-shadow: 0 4px 12px rgba(0,0,0,0.06);
         transition: all 0.25s ease-in-out;
-    }}
-    .dashboard-card:hover {{ 
+    }
+    .dashboard-card:hover { 
         transform: translateY(-2px); 
         box-shadow: 0 8px 20px rgba(0,0,0,0.12); 
-    }}
-    .card-title {{
+    }
+    .card-title {
         font-size: 0.75rem;
         text-transform: uppercase;
         letter-spacing: 0.8px;
         opacity: 0.7;
         margin-bottom: 4px;
         font-weight: 600;
-    }}
-    .card-value {{
+    }
+    .card-value {
         font-size: 1.15rem;
         font-weight: 700;
         color: var(--primary-color);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-    }}
+    }
 
-    .credits-footer {{
+    .credits-footer {
         margin-top: 25px;
         padding: 18px 14px;
         background: var(--secondary-background-color);
         border-radius: 12px;
         text-align: center;
         border-bottom: 3px solid var(--primary-color);
-    }}
-    .contact-btn {{
+    }
+    .contact-btn {
         display: inline-block;
         margin-top: 10px;
         padding: 8px 18px;
@@ -232,28 +230,28 @@ st.markdown(f"""
         font-size: 0.85rem;
         font-weight: 600;
         transition: all 0.25s ease;
-    }}
-    .contact-btn:hover {{ 
+    }
+    .contact-btn:hover { 
         filter: brightness(1.15); 
         transform: translateY(-1px); 
-    }}
+    }
 
-    .stChatMessage {{
+    .stChatMessage {
         border-radius: 12px;
         padding: 12px;
         margin-bottom: 8px;
-    }}
+    }
 </style>
 
 <!-- Floating Scroll-to-Bottom Button Widget -->
 <div class="scroll-down-btn" id="scrollDownBtn" title="Jump to bottom" onclick="
     const doc = window.parent.document;
     const mainContainer = doc.querySelector('section.main');
-    if (mainContainer) {{
-        mainContainer.scrollTo({{ top: mainContainer.scrollHeight, behavior: 'smooth' }});
-    }}
-    window.parent.scrollTo({{ top: doc.body.scrollHeight, behavior: 'smooth' }});
-    window.scrollTo({{ top: document.body.scrollHeight, behavior: 'smooth' }});
+    if (mainContainer) {
+        mainContainer.scrollTo({ top: mainContainer.scrollHeight, behavior: 'smooth' });
+    }
+    window.parent.scrollTo({ top: doc.body.scrollHeight, behavior: 'smooth' });
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
 ">
     ↓
 </div>
