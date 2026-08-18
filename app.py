@@ -51,16 +51,12 @@ def execute_save():
         }
         
         data_str = json.dumps(data)
-        
-        # Try writing with a key (required by newer library versions)
         try:
             localStorage.setItem("cognipulse_user_session", data_str, key="ls_write_key")
         except TypeError:
-            # Fallback for older library versions that throw TypeError for unknown kwargs
             localStorage.setItem("cognipulse_user_session", data_str)
-            
     except Exception:
-        pass # Fail silently to prevent crashing the UI
+        pass
 
 # -------------------------------------------------------------
 # 3. Session State Initialization & Data Restoration
@@ -68,11 +64,9 @@ def execute_save():
 saved_data = None
 if localStorage is not None:
     try:
-        # Try reading with a key
         try:
             saved_data = localStorage.getItem("cognipulse_user_session", key="ls_read_key")
         except TypeError:
-            # Fallback for older library versions
             saved_data = localStorage.getItem("cognipulse_user_session")
     except Exception:
         pass
@@ -102,7 +96,6 @@ if "initialized" not in st.session_state:
 # Step B: Inject LocalStorage data once the component returns it
 if saved_data and not st.session_state.ls_loaded:
     try:
-        # Prevent TypeError if the library automatically parsed the JSON into a dictionary
         if isinstance(saved_data, dict):
             saved = saved_data
         else:
@@ -127,6 +120,10 @@ if saved_data and not st.session_state.ls_loaded:
         st.rerun() 
     except Exception:
         pass
+
+# Safety check: If the last message is from user and we aren't generating, trigger generation to fix stuck loops
+if st.session_state.messages and st.session_state.messages[-1]["role"] == "user" and not st.session_state.get("is_generating", False):
+    st.session_state.is_generating = True
 
 # -------------------------------------------------------------
 # 4. Custom Responsive UI Styling & Header Cleaner
@@ -365,6 +362,7 @@ with st.sidebar:
             "role": "assistant", 
             "content": f"Chat cleared. What are we studying in **{st.session_state.subject}** today?"
         }]
+        st.session_state.is_generating = False
         mark_for_save()
         st.rerun()
 
@@ -522,7 +520,7 @@ if active_prompt:
     st.rerun()
 
 # -------------------------------------------------------------
-# 9. Execution Block
+# 9. Execution Block (With Strict History Sanitization)
 # -------------------------------------------------------------
 if st.session_state.get("is_generating", False):
     active_prompt = st.session_state.messages[-1]["content"] if st.session_state.messages else ""
@@ -546,13 +544,20 @@ if st.session_state.get("is_generating", False):
                 prompt_parts.append(uploaded_remote)
                 os.remove(tmp_path)
 
-        history = [
-            types.Content(
-                role="user" if m["role"] == "user" else "model",
-                parts=[types.Part.from_text(text=m["content"])]
-            )
-            for m in st.session_state.messages[:-2]
-        ]
+        # STRICT HISTORY SANITIZATION: Guarantees strict alternating user/model roles for Gemini API
+        history = []
+        expected_role = "user"
+        # Exclude the very last user message because it's sent as the active prompt payload
+        for m in st.session_state.messages[:-1]:
+            role = "user" if m["role"] == "user" else "model"
+            if role == expected_role:
+                history.append(
+                    types.Content(
+                        role=role,
+                        parts=[types.Part.from_text(text=m["content"])]
+                    )
+                )
+                expected_role = "model" if expected_role == "user" else "user"
 
         if st.session_state.selected_model.startswith("Auto-Select"):
             candidates = [
