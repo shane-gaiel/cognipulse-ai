@@ -86,9 +86,7 @@ if "initialized" not in st.session_state:
 # -------------------------------------------------------------
 # 4. Custom Responsive UI Styling & Smart Floating Scroll Button
 # -------------------------------------------------------------
-is_gen = st.session_state.get("is_generating", False)
-
-if is_gen:
+if st.session_state.get("is_generating", False):
     st.markdown("""
     <style>
         button[data-testid='stChatInputSubmitButton'] { position: relative !important; }
