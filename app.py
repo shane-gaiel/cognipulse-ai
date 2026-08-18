@@ -247,40 +247,52 @@ st.markdown(f"""
 
 <!-- Floating Scroll-to-Bottom Button Widget -->
 <div class="scroll-down-btn" id="scrollDownBtn" title="Jump to bottom" onclick="
-    const mainContainer = window.parent.document.querySelector('section.main');
+    const doc = window.parent.document;
+    const mainContainer = doc.querySelector('section.main');
     if (mainContainer) {{
         mainContainer.scrollTo({{ top: mainContainer.scrollHeight, behavior: 'smooth' }});
     }}
-    window.parent.scrollTo({{ top: window.parent.document.body.scrollHeight, behavior: 'smooth' }});
+    window.parent.scrollTo({{ top: doc.body.scrollHeight, behavior: 'smooth' }});
+    window.scrollTo({{ top: document.body.scrollHeight, behavior: 'smooth' }});
 ">
     ↓
 </div>
 
 <script>
-    // Monitor scroll position to dynamically show/hide the scroll-down arrow button when scrolled up
-    (function() {{
+    (function() {
         const doc = window.parent.document;
-        const checkContainer = () => {{
-            const mainContainer = doc.querySelector('section.main');
+        function initScrollWatcher() {
             const scrollBtn = doc.getElementById('scrollDownBtn');
-            if (mainContainer && scrollBtn) {{
-                const updateVisibility = () => {{
-                    const distanceFromBottom = mainContainer.scrollHeight - (mainContainer.scrollTop + mainContainer.clientHeight);
-                    // Show arrow if scrolled up more than 300px away from the bottom
-                    if (distanceFromBottom > 300) {{
+            const mainContainer = doc.querySelector('section.main') || doc.documentElement;
+            
+            if (scrollBtn && mainContainer) {
+                const checkPosition = () => {
+                    const st = mainContainer.scrollTop || doc.documentElement.scrollTop || doc.body.scrollTop;
+                    const sh = mainContainer.scrollHeight || doc.documentElement.scrollHeight || doc.body.scrollHeight;
+                    const ch = mainContainer.clientHeight || window.innerHeight;
+                    
+                    const distanceFromBottom = sh - (st + ch);
+                    
+                    // Show arrow when scrolled up more than 200px into previous chats
+                    if (distanceFromBottom > 200) {
                         scrollBtn.style.display = 'flex';
-                    }} else {{
+                    } else {
                         scrollBtn.style.display = 'none';
-                    }}
-                }};
-                mainContainer.removeEventListener('scroll', updateVisibility);
-                mainContainer.addEventListener('scroll', updateVisibility);
-                updateVisibility();
-            }}
-        }};
-        setTimeout(checkContainer, 500);
-        doc.addEventListener('DOMContentLoaded', checkContainer);
-    }})();
+                    }
+                };
+
+                mainContainer.removeEventListener('scroll', checkPosition);
+                mainContainer.addEventListener('scroll', checkPosition);
+                doc.removeEventListener('scroll', checkPosition);
+                doc.addEventListener('scroll', checkPosition, true);
+                
+                checkPosition();
+            }
+        }
+
+        setTimeout(initScrollWatcher, 400);
+        setTimeout(initScrollWatcher, 1200);
+    })();
 </script>
 """, unsafe_allow_html=True)
 
