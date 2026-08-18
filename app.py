@@ -67,6 +67,7 @@ if "initialized" not in st.session_state:
     st.session_state.detail_level = saved.get("detail_level", "Detailed & Step-by-Step")
     st.session_state.last_working_model = "Auto-Engine"
     st.session_state.is_generating = False
+    st.session_state.trigger_scroll = False
     
     last_active = saved.get("last_active", 0)
     current_time = time.time()
@@ -84,7 +85,7 @@ if "initialized" not in st.session_state:
     st.session_state.initialized = True
 
 # -------------------------------------------------------------
-# 4. Custom Responsive UI Styling & Header Stop Button Remover
+# 4. Custom Responsive UI Styling & Header Cleaner
 # -------------------------------------------------------------
 is_gen = st.session_state.get("is_generating", False)
 
@@ -349,6 +350,7 @@ with st.sidebar:
                     st.session_state.messages.append({"role": "assistant", "content": a_text})
                 else:
                     st.session_state.selected_recent = q_text
+                st.session_state.trigger_scroll = True
                 save_data()
                 st.rerun()
     else:
@@ -477,6 +479,7 @@ if active_prompt:
         display_user_content = active_prompt
 
     st.session_state.messages.append({"role": "user", "content": display_user_content})
+    st.session_state.trigger_scroll = True
     save_data()
 
     with st.chat_message("user"):
@@ -596,4 +599,28 @@ if st.session_state.get("is_generating", False):
     # DEACTIVATE GENERATION STATE (Restores send button back to normal)
     # =====================================================================
     st.session_state.is_generating = False
+    st.session_state.trigger_scroll = True
     st.rerun()
+
+# -------------------------------------------------------------
+# 9. Auto-Scroll Trigger Handler
+# -------------------------------------------------------------
+if st.session_state.get("trigger_scroll", False):
+    st.markdown("""
+        <script>
+            setTimeout(function() {
+                const mainContainer = window.parent.document.querySelector('section.main');
+                if (mainContainer) {
+                    mainContainer.scrollTo({
+                        top: mainContainer.scrollHeight,
+                        behavior: 'smooth'
+                    });
+                }
+                window.parent.scrollTo({
+                    top: window.parent.document.body.scrollHeight,
+                    behavior: 'smooth'
+                });
+            }, 150);
+        </script>
+    """, unsafe_allow_html=True)
+    st.session_state.trigger_scroll = False
