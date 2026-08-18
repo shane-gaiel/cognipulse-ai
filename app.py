@@ -393,28 +393,31 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 # -------------------------------------------------------------
-# 8. Integrated Attachment & Response Engine
+# 8. Inline Attachment & Gemini-Style Native Chat Field
 # -------------------------------------------------------------
-uploaded_file = None
-
-# Integrated Attachment Action Bar with '+' Popover Button
-col_pop, col_status = st.columns([1, 12])
-with col_pop:
-    with st.popover("➕", help="Add image, document, or code file"):
-        uploaded_file = st.file_uploader(
-            "Attach File to Prompt:",
-            type=["png", "jpg", "jpeg", "webp", "pdf", "txt", "py", "js"],
-            key="chat_file_uploader"
-        )
-with col_status:
-    if uploaded_file:
-        st.caption(f"📎 **Attached File Ready:** `{uploaded_file.name}`")
-
 active_prompt = None
+attached_files = []
 
-chat_input_val = st.chat_input("Ask a question, request a concept breakdown, or share a problem...")
-if chat_input_val:
-    active_prompt = chat_input_val
+# Native Gemini-Style Attachment Button embedded directly INSIDE the Chat Bar
+chat_response = st.chat_input(
+    "Ask a question, request a concept breakdown, or share a problem...",
+    accept_file=True,
+    file_type=["png", "jpg", "jpeg", "webp", "pdf", "txt", "py", "js"]
+)
+
+if chat_response:
+    if isinstance(chat_response, dict):
+        active_prompt = chat_response.get("text", "")
+        raw_files = chat_response.get("files", [])
+    elif hasattr(chat_response, "text"):
+        active_prompt = chat_response.text
+        raw_files = getattr(chat_response, "files", [])
+    else:
+        active_prompt = str(chat_response)
+        raw_files = []
+        
+    attached_files = raw_files if isinstance(raw_files, list) else ([raw_files] if raw_files else [])
+
 elif "selected_recent" in st.session_state and st.session_state.selected_recent:
     active_prompt = st.session_state.selected_recent
     del st.session_state.selected_recent
@@ -424,9 +427,11 @@ if active_prompt:
         st.warning("⚠️ Please enter and lock in your Gemini API key in the sidebar control panel first.")
         st.stop()
 
-    display_user_content = active_prompt
-    if uploaded_file:
-        display_user_content = f"📎 *Attached file: {uploaded_file.name}*\n\n{active_prompt}"
+    file_names = [f.name for f in attached_files] if attached_files else []
+    if file_names:
+        display_user_content = f"📎 *Attached file(s): {', '.join(file_names)}*\n\n{active_prompt}"
+    else:
+        display_user_content = active_prompt
 
     st.session_state.messages.append({"role": "user", "content": display_user_content})
     save_data()
@@ -437,21 +442,21 @@ if active_prompt:
     try:
         client = genai.Client(api_key=st.session_state.api_key)
         
-        # Process uploaded attachment if present
-        attachment_part = None
-        if uploaded_file:
+        # Process attached files if uploaded directly inside the prompt bar
+        prompt_parts = []
+        for uploaded_file in attached_files:
             file_bytes = uploaded_file.getvalue()
             mime_type = uploaded_file.type or "application/octet-stream"
             
             if mime_type.startswith("image/"):
-                attachment_part = types.Part.from_bytes(data=file_bytes, mime_type=mime_type)
+                prompt_parts.append(types.Part.from_bytes(data=file_bytes, mime_type=mime_type))
             else:
                 with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{uploaded_file.name}") as tmp:
                     tmp.write(file_bytes)
                     tmp_path = tmp.name
                 
                 uploaded_remote = client.files.upload(file=tmp_path)
-                attachment_part = uploaded_remote
+                prompt_parts.append(uploaded_remote)
                 os.remove(tmp_path)
 
         # Build contextual history payload
@@ -484,9 +489,10 @@ if active_prompt:
         successful_model_name = None
         last_exception = None
 
-        # Build prompt payload with attachment if available
-        if attachment_part:
-            prompt_payload = [attachment_part, active_prompt]
+        # Build prompt payload with attachments if available
+        if prompt_parts:
+            prompt_parts.append(active_prompt)
+            prompt_payload = prompt_parts
         else:
             prompt_payload = active_prompt
 
