@@ -67,7 +67,6 @@ if "initialized" not in st.session_state:
     st.session_state.detail_level = saved.get("detail_level", "Detailed & Step-by-Step")
     st.session_state.last_working_model = "Auto-Engine"
     st.session_state.is_generating = False
-    st.session_state.needs_scroll = False
     
     last_active = saved.get("last_active", 0)
     current_time = time.time()
@@ -85,7 +84,7 @@ if "initialized" not in st.session_state:
     st.session_state.initialized = True
 
 # -------------------------------------------------------------
-# 4. Custom Responsive UI Styling & Header Cleaner
+# 4. Custom Responsive UI Styling & Floating Scroll Button
 # -------------------------------------------------------------
 is_gen = st.session_state.get("is_generating", False)
 
@@ -109,7 +108,7 @@ st.markdown(f"""
     /* Padding adjustment so body elements clear the fixed app bar */
     .main .block-container {{ 
         padding-top: 4.5rem !important; 
-        padding-bottom: 4rem; 
+        padding-bottom: 5rem; 
         max-width: 1200px;
     }}
 
@@ -130,6 +129,33 @@ st.markdown(f"""
     /* Optimize chat input positioning and prevent layout overlap */
     [data-testid="stChatInput"] {{
         bottom: 1rem !important;
+    }}
+
+    /* ===================================================================== */
+    /* FLOATING SCROLL-TO-BOTTOM ARROW BUTTON                                */
+    /* ===================================================================== */
+    .scroll-down-btn {{
+        position: fixed;
+        bottom: 5.5rem;
+        right: 2rem;
+        background-color: rgba(40, 40, 40, 0.85);
+        color: #ffffff;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 50%;
+        width: 42px;
+        height: 42px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem;
+        cursor: pointer;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+        z-index: 999999;
+        transition: all 0.2s ease;
+    }}
+    .scroll-down-btn:hover {{
+        background-color: var(--primary-color, #ff4b4b);
+        transform: scale(1.1);
     }}
 
     /* ===================================================================== */
@@ -202,6 +228,17 @@ st.markdown(f"""
         margin-bottom: 8px;
     }}
 </style>
+
+<!-- Floating Scroll-to-Bottom Button Widget -->
+<div class="scroll-down-btn" title="Jump to bottom" onclick="
+    const mainContainer = window.parent.document.querySelector('section.main');
+    if (mainContainer) {
+        mainContainer.scrollTo({ top: mainContainer.scrollHeight, behavior: 'smooth' });
+    }
+    window.parent.scrollTo({ top: window.parent.document.body.scrollHeight, behavior: 'smooth' });
+">
+    ↓
+</div>
 """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------
@@ -350,7 +387,6 @@ with st.sidebar:
                     st.session_state.messages.append({"role": "assistant", "content": a_text})
                 else:
                     st.session_state.selected_recent = q_text
-                st.session_state.needs_scroll = True
                 save_data()
                 st.rerun()
     else:
@@ -479,7 +515,6 @@ if active_prompt:
         display_user_content = active_prompt
 
     st.session_state.messages.append({"role": "user", "content": display_user_content})
-    st.session_state.needs_scroll = True
     save_data()
 
     with st.chat_message("user"):
@@ -596,31 +631,7 @@ if st.session_state.get("is_generating", False):
             st.error(f"Oops! Something went wrong: {str(e)}")
 
     # =====================================================================
-    # DEACTIVATE GENERATION STATE & TRIGGER FINAL SCROLL
+    # DEACTIVATE GENERATION STATE
     # =====================================================================
     st.session_state.is_generating = False
-    st.session_state.needs_scroll = True
     st.rerun()
-
-# -------------------------------------------------------------
-# 9. Centralized Smooth Auto-Scroll Handler
-# -------------------------------------------------------------
-if st.session_state.get("needs_scroll", False):
-    st.markdown("""
-        <script>
-            setTimeout(function() {
-                const mainContainer = window.parent.document.querySelector('section.main');
-                if (mainContainer) {
-                    mainContainer.scrollTo({
-                        top: mainContainer.scrollHeight,
-                        behavior: 'smooth'
-                    });
-                }
-                window.parent.scrollTo({
-                    top: window.parent.document.body.scrollHeight,
-                    behavior: 'smooth'
-                });
-            }, 120);
-        </script>
-    """, unsafe_allow_html=True)
-    st.session_state.needs_scroll = False
