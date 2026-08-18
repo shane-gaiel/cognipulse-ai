@@ -264,8 +264,6 @@ with st.sidebar:
     st.subheader("🤖 AI Model Engine")
     model_options = [
         "Auto-Select (Flash & Pro Engine)",
-        "gemini-3.6-flash",
-        "gemini-3.1-pro",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.0-flash",
@@ -547,7 +545,6 @@ if st.session_state.get("is_generating", False):
         # STRICT HISTORY SANITIZATION: Guarantees strict alternating user/model roles for Gemini API
         history = []
         expected_role = "user"
-        # Exclude the very last user message because it's sent as the active prompt payload
         for m in st.session_state.messages[:-1]:
             role = "user" if m["role"] == "user" else "model"
             if role == expected_role:
@@ -561,12 +558,11 @@ if st.session_state.get("is_generating", False):
 
         if st.session_state.selected_model.startswith("Auto-Select"):
             candidates = [
-                "gemini-3.6-flash", "gemini-3.1-pro", "gemini-2.5-pro",
-                "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"
+                "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"
             ]
         elif st.session_state.selected_model == "Custom Model ID":
             custom_val = st.session_state.custom_model.strip()
-            candidates = [custom_val] if custom_val else ["gemini-3.6-flash", "gemini-3.1-pro", "gemini-2.5-pro"]
+            candidates = [custom_val] if custom_val else ["gemini-2.5-pro", "gemini-2.5-flash"]
         else:
             candidates = [st.session_state.selected_model]
 
@@ -603,13 +599,13 @@ if st.session_state.get("is_generating", False):
                 except Exception as model_err:
                     last_exception = model_err
                     err_str = str(model_err).lower()
-                    if any(code in err_str for code in ["503", "unavailable", "resource_exhausted", "high demand", "quota"]):
+                    if any(code in err_str for code in ["404", "not_found", "503", "unavailable", "resource_exhausted", "high demand", "quota"]):
                         continue
                     else:
                         raise model_err
 
             if assistant_reply is None:
-                raise last_exception or Exception("All model tiers are currently experiencing heavy traffic. Please try again in a moment.")
+                raise last_exception or Exception("All model tiers are currently unavailable or not found. Please check your selected model or API key permissions.")
             
             st.session_state.messages.append({"role": "assistant", "content": assistant_reply})
             
@@ -626,8 +622,10 @@ if st.session_state.get("is_generating", False):
 
     except Exception as e:
         error_str = str(e).lower()
-        if "503" in error_str or "unavailable" in error_str or "high demand" in error_str:
-            st.info("🚦 **Heavy Traffic Detected:** The AI models are experiencing high demand. Please try clicking your question from the 'Recent Questions' menu in the sidebar to try again.")
+        if "404" in error_str or "not_found" in error_str:
+            st.error(f"⚠️ **Model Not Found Error:** The requested model is not supported by your API key or endpoint. Try switching your AI Model Engine in the sidebar to **Auto-Select** or a verified model like `gemini-2.5-flash`.")
+        elif "503" in error_str or "unavailable" in error_str:
+            st.info("🚦 **Heavy Traffic Detected:** The AI models are experiencing high demand. Please try again.")
         else:
             st.error(f"Oops! Something went wrong: {str(e)}")
 
