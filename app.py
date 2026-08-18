@@ -110,10 +110,10 @@ st.markdown("""
     }
 
     /* ========================================================= */
-    /* UI FIX: Hide Native Running Widget & Replace Stop Button  */
+    /* UI FIX: Hide Native Running Widget & Replace Top Stop Btn */
     /* ========================================================= */
     
-    /* 1. Hide the default Streamlit processing 'Running...' text and runner icon */
+    /* Hide the default Streamlit processing 'Running...' text and runner icon */
     [data-testid="stStatusWidget"] label,
     [data-testid="stStatusWidget"] p,
     [data-testid="stStatusWidget"] img,
@@ -122,7 +122,7 @@ st.markdown("""
         display: none !important;
     }
 
-    /* 2. Style the 'Stop' button into a sleek '■' icon to prevent overlap */
+    /* Style the top right 'Stop' button into a sleek '■' icon */
     [data-testid="stStatusWidget"] button {
         color: transparent !important;
         background-color: transparent !important;
@@ -151,32 +151,8 @@ st.markdown("""
     }
 
     /* ========================================================= */
-    /* UI ADDITION: Custom Chat Processing Animation             */
+    /* Custom Styling for Dashboard Elements                     */
     /* ========================================================= */
-    .chat-processing {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 8px 12px;
-        border-radius: 8px;
-    }
-    .chat-processing span {
-        width: 8px;
-        height: 8px;
-        background-color: var(--primary-color, #ff4b4b);
-        border-radius: 50%;
-        animation: pulse 1.4s infinite ease-in-out both;
-    }
-    .chat-processing span:nth-child(1) { animation-delay: -0.32s; }
-    .chat-processing span:nth-child(2) { animation-delay: -0.16s; }
-    
-    @keyframes pulse {
-        0%, 80%, 100% { transform: scale(0.4); opacity: 0.3; }
-        40% { transform: scale(1); opacity: 1; }
-    }
-
-    /* ========================================================= */
-
     .dashboard-card {
         background: var(--secondary-background-color);
         color: var(--text-color);
@@ -524,7 +500,7 @@ if active_prompt:
     try:
         client = genai.Client(api_key=st.session_state.api_key)
         
-        # Process attached files if uploaded directly inside the prompt bar
+        # Process attached files
         prompt_parts = []
         for uploaded_file in attached_files:
             file_bytes = uploaded_file.getvalue()
@@ -550,16 +526,11 @@ if active_prompt:
             for m in st.session_state.messages[:-1]
         ]
 
-        # Determine Model Candidates (Auto-Select fallback chain)
+        # Determine Model Candidates
         if st.session_state.selected_model.startswith("Auto-Select"):
             candidates = [
-                "gemini-3.6-flash",
-                "gemini-3.1-pro",
-                "gemini-2.5-pro",
-                "gemini-2.5-flash",
-                "gemini-2.0-flash",
-                "gemini-1.5-pro",
-                "gemini-1.5-flash"
+                "gemini-3.6-flash", "gemini-3.1-pro", "gemini-2.5-pro",
+                "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"
             ]
         elif st.session_state.selected_model == "Custom Model ID":
             custom_val = st.session_state.custom_model.strip()
@@ -567,12 +538,54 @@ if active_prompt:
         else:
             candidates = [st.session_state.selected_model]
 
-        # Initialize the bot chat message block to place loading animation and text
         with st.chat_message("assistant"):
             
-            # --- SHOW CUSTOM PULSING DOTS ANIMATION ---
-            loading_placeholder = st.empty()
-            loading_placeholder.markdown("""
+            # =====================================================================
+            # DYNAMIC UI INJECTION: Chat Processing & Dynamic Send-to-Stop Button
+            # =====================================================================
+            loading_ui = st.empty()
+            loading_ui.markdown("""
+                <style>
+                    /* 1. Custom pulsing dots inside the chat box */
+                    .chat-processing {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 6px;
+                        padding: 8px 12px;
+                        border-radius: 8px;
+                    }
+                    .chat-processing span {
+                        width: 8px;
+                        height: 8px;
+                        background-color: var(--primary-color, #ff4b4b);
+                        border-radius: 50%;
+                        animation: pulse 1.4s infinite ease-in-out both;
+                    }
+                    .chat-processing span:nth-child(1) { animation-delay: -0.32s; }
+                    .chat-processing span:nth-child(2) { animation-delay: -0.16s; }
+                    
+                    @keyframes pulse {
+                        0%, 80%, 100% { transform: scale(0.4); opacity: 0.3; }
+                        40% { transform: scale(1); opacity: 1; }
+                    }
+
+                    /* 2. Overwrite the Chat Input Send Button specifically while processing */
+                    button[data-testid="stChatInputSubmitButton"] svg {
+                        display: none !important;
+                    }
+                    button[data-testid="stChatInputSubmitButton"]::after {
+                        content: "■";
+                        color: #ff4b4b !important;
+                        font-size: 1.6rem;
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    }
+                </style>
                 <div class="chat-processing">
                     <span></span><span></span><span></span>
                 </div>
@@ -582,7 +595,7 @@ if active_prompt:
             successful_model_name = None
             last_exception = None
 
-            # Build prompt payload with attachments if available
+            # Build prompt payload
             if prompt_parts:
                 prompt_parts.append(active_prompt)
                 prompt_payload = prompt_parts
@@ -608,8 +621,8 @@ if active_prompt:
                     last_exception = model_err
                     continue
             
-            # --- REMOVE CUSTOM ANIMATION ONCE CONNECTION IS MADE ---
-            loading_placeholder.empty()
+            # --- REMOVE UI INJECTION (Restores Send Button & Removes Dots) ---
+            loading_ui.empty()
 
             if response_stream is None:
                 raise last_exception or Exception("Unable to connect to selected Gemini model tier with the provided API Key.")
@@ -621,10 +634,8 @@ if active_prompt:
                         
             assistant_reply = st.write_stream(stream_generator)
             
-            # Persist assistant response into conversation state
             st.session_state.messages.append({"role": "assistant", "content": assistant_reply})
             
-            # Log question recall center item
             st.session_state.recent_questions = [
                 item for item in st.session_state.recent_questions 
                 if (item.get("q") if isinstance(item, dict) else item) != active_prompt
@@ -636,5 +647,16 @@ if active_prompt:
             
             save_data()
 
+    # =====================================================================
+    # GRACEFUL ERROR HANDLING: Replaces standard 503/High Demand errors
+    # =====================================================================
     except Exception as e:
-        st.error(f"Error communicating with AI engine: {e}")
+        # Failsafe UI clear just in case the execution crashed prior to empty()
+        if 'loading_ui' in locals():
+            loading_ui.empty()
+            
+        error_str = str(e).lower()
+        if "503" in error_str or "unavailable" in error_str or "high demand" in error_str:
+            st.info("🚦 **Heavy Traffic Detected:** The AI model is currently experiencing high demand. Please wait a few seconds and try clicking your prompt from the 'Recent Questions' menu to try again.")
+        else:
+            st.error(f"Oops! Something went wrong: {str(e)}")
