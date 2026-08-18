@@ -1,5 +1,7 @@
+import os
 import json
 import time
+import tempfile
 import streamlit as st
 from google import genai
 from google.genai import types
@@ -81,18 +83,16 @@ if "initialized" not in st.session_state:
     st.session_state.initialized = True
 
 # -------------------------------------------------------------
-# 4. Premium Responsive UI Styling & Custom CSS
+# 4. Custom Responsive UI Styling
 # -------------------------------------------------------------
 st.markdown("""
 <style>
-    /* Main Layout Refinements */
     .main .block-container { 
         padding-top: 1.5rem; 
         padding-bottom: 3rem; 
         max-width: 1200px;
     }
 
-    /* Metric Cards Glassmorphism Grid */
     .dashboard-card {
         background: var(--secondary-background-color);
         color: var(--text-color);
@@ -124,7 +124,6 @@ st.markdown("""
         text-overflow: ellipsis;
     }
 
-    /* Creator Signature Footer */
     .credits-footer {
         margin-top: 25px;
         padding: 18px 14px;
@@ -150,7 +149,6 @@ st.markdown("""
         transform: translateY(-1px); 
     }
 
-    /* Chat Styling Enhancements */
     .stChatMessage {
         border-radius: 12px;
         padding: 12px;
@@ -184,7 +182,7 @@ with st.sidebar:
             
     st.divider()
 
-    # --- Multi-Model Engine with Pro & Flash Support ---
+    # --- Multi-Model Engine ---
     st.subheader("🤖 AI Model Engine")
     model_options = [
         "Auto-Select (Flash & Pro Engine)",
@@ -201,9 +199,13 @@ with st.sidebar:
     selected_m = st.selectbox(
         "Select Model Mode",
         model_options,
+        index=0,
         key="selected_model",
         on_change=save_data
     )
+    
+    # Minimal Notice on API permissions & Auto-Select recommendation
+    st.caption("💡 *Note: Selected model must match your API key permissions. If unsure, set to **Auto-Select**.*")
     
     if selected_m == "Custom Model ID":
         st.text_input(
@@ -360,7 +362,7 @@ with col4:
 st.write("")
 
 # -------------------------------------------------------------
-# 7. Optimized System Instructions & Socratic Guardrails
+# 7. System Instructions & Formatting Guardrails
 # -------------------------------------------------------------
 if "None" in st.session_state.strictness:
     guardrail_instructions = "CORE RULE: Provide immediate direct answers and complete mathematical step-by-step solutions."
@@ -379,11 +381,11 @@ Explanation Depth Preference: {st.session_state.detail_level}.
 
 {guardrail_instructions}
 
-ACCURACY & TRUTH VERIFICATION MANDATE:
+STRICT FORMATTING RULES:
 1. Step-by-step mathematical calculations must be independently computed prior to stating final answers.
-2. Maintain rigorous conceptual accuracy and logical validation across all explanations.
-3. Keep standard Markdown text and section headers outside LaTeX blocks ($ or $$).
-4. Integrate vivid thematic analogies seamlessly when explaining complex mechanisms.
+2. NEVER output broken or raw complex LaTeX environments like \\phantom or unclosed \\begin{{array}} outside standard LaTeX blocks.
+3. Use simple inline $...$ or display $$...$$ for math. For alignment/place values, use standard bullet points or simple text lines.
+4. Keep all normal explanations in clean Markdown without unescaped LaTeX tags.
 """
 
 # Render Active Chat Feed
@@ -392,8 +394,15 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 # -------------------------------------------------------------
-# 8. High-Speed Real-Time Response Engine (Streaming & Fallback)
+# 8. File Upload Attachment & Real-Time Response Engine
 # -------------------------------------------------------------
+with st.expander("📎 Attach File / Image to Prompt", expanded=False):
+    uploaded_file = st.file_uploader(
+        "Upload image, document, or code file for AI analysis:",
+        type=["png", "jpg", "jpeg", "webp", "pdf", "txt", "py", "js"],
+        key="chat_file_uploader"
+    )
+
 active_prompt = None
 
 chat_input_val = st.chat_input("Ask a question, request a concept breakdown, or share a problem...")
@@ -408,15 +417,37 @@ if active_prompt:
         st.warning("⚠️ Please enter and lock in your Gemini API key in the sidebar control panel first.")
         st.stop()
 
-    st.session_state.messages.append({"role": "user", "content": active_prompt})
+    display_user_content = active_prompt
+    if uploaded_file:
+        display_user_content = f"📎 *Attached file: {uploaded_file.name}*\n\n{active_prompt}"
+
+    st.session_state.messages.append({"role": "user", "content": display_user_content})
     save_data()
 
     with st.chat_message("user"):
-        st.markdown(active_prompt)
+        st.markdown(display_user_content)
 
     try:
         client = genai.Client(api_key=st.session_state.api_key)
         
+        # Process uploaded attachment if present
+        attachment_part = None
+        if uploaded_file:
+            file_bytes = uploaded_file.getvalue()
+            mime_type = uploaded_file.type or "application/octet-stream"
+            
+            if mime_type.startswith("image/"):
+                attachment_part = types.Part.from_bytes(data=file_bytes, mime_type=mime_type)
+            else:
+                # Store temporarily for Gemini Files API upload
+                with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{uploaded_file.name}") as tmp:
+                    tmp.write(file_bytes)
+                    tmp_path = tmp.name
+                
+                uploaded_remote = client.files.upload(file=tmp_path)
+                attachment_part = uploaded_remote
+                os.remove(tmp_path)
+
         # Build contextual history payload
         history = [
             types.Content(
@@ -426,7 +457,7 @@ if active_prompt:
             for m in st.session_state.messages[:-1]
         ]
 
-        # Determine Model Candidates (Pro & Flash fallback chain including 3.1 Pro)
+        # Determine Model Candidates (Auto-Select fallback chain)
         if st.session_state.selected_model.startswith("Auto-Select"):
             candidates = [
                 "gemini-3.6-flash",
@@ -447,7 +478,13 @@ if active_prompt:
         successful_model_name = None
         last_exception = None
 
-        # Execute Multi-Tier Fallback Request across Flash & Pro endpoints
+        # Build prompt payload with attachment if available
+        if attachment_part:
+            prompt_payload = [attachment_part, active_prompt]
+        else:
+            prompt_payload = active_prompt
+
+        # Execute Multi-Tier Fallback Request
         for model_id in candidates:
             try:
                 chat = client.chats.create(
@@ -458,7 +495,7 @@ if active_prompt:
                     ),
                     history=history
                 )
-                response_stream = chat.send_message_stream(active_prompt)
+                response_stream = chat.send_message_stream(prompt_payload)
                 successful_model_name = model_id
                 st.session_state.last_working_model = model_id
                 break
@@ -467,7 +504,7 @@ if active_prompt:
                 continue
 
         if response_stream is None:
-            raise last_exception or Exception("Unable to connect to any Gemini model tier with the provided API Key.")
+            raise last_exception or Exception("Unable to connect to selected Gemini model tier with the provided API Key.")
 
         with st.chat_message("assistant"):
             def stream_generator():
