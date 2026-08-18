@@ -84,7 +84,7 @@ if "initialized" not in st.session_state:
     st.session_state.initialized = True
 
 # -------------------------------------------------------------
-# 4. Custom Responsive UI Styling & Header Cleaner
+# 4. Custom Responsive UI Styling & Header Stop Button Remover
 # -------------------------------------------------------------
 is_gen = st.session_state.get("is_generating", False)
 
@@ -593,7 +593,7 @@ if st.session_state.get("is_generating", False):
             st.error(f"Oops! Something went wrong: {str(e)}")
 
     # =====================================================================
-    # DEACTIVATE GENERATION STATE
+    # DEACTIVATE GENERATION STATE (Restores send button back to normal)
     # =====================================================================
     st.session_state.is_generating = False
     st.rerun()
