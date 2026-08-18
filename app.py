@@ -22,17 +22,8 @@ localStorage = LocalStorage()
 SESSION_TIMEOUT_SECONDS = 3600  # 1 Hour session window
 
 # -------------------------------------------------------------
-# 2. Local Storage & Persistence Helpers
+# 2. Local Storage Saving Helper
 # -------------------------------------------------------------
-def load_save_data():
-    try:
-        data_str = localStorage.getItem("cognipulse_user_session")
-        if data_str:
-            return json.loads(data_str)
-    except Exception:
-        pass
-    return {}
-
 def save_data():
     try:
         data = {
@@ -47,44 +38,65 @@ def save_data():
             "strictness": st.session_state.get("strictness", "High (Strict Socratic)"),
             "detail_level": st.session_state.get("detail_level", "Detailed & Step-by-Step")
         }
-        unique_key = f"save_{int(time.time() * 1000)}"
-        localStorage.setItem("cognipulse_user_session", json.dumps(data), key=unique_key)
+        # Fixed Key: Prevents Streamlit from generating excessive DOM iframes on every save
+        localStorage.setItem("cognipulse_user_session", json.dumps(data), key="cognipulse_ls_set")
     except Exception as e:
         st.warning(f"Unable to auto-save session: {e}")
 
 # -------------------------------------------------------------
-# 3. Session State Initialization
+# 3. Session State Initialization & Data Restoration
 # -------------------------------------------------------------
+# Fetch data at the top level so the React component mounts and syncs reliably
+saved_str = localStorage.getItem("cognipulse_user_session", key="cognipulse_ls_get")
+
+# Step A: Initialize defaults on the very first script run
 if "initialized" not in st.session_state:
-    saved = load_save_data()
-    st.session_state.api_key = saved.get("api_key", "")
-    st.session_state.selected_model = saved.get("selected_model", "Auto-Select (Flash & Pro Engine)")
-    st.session_state.custom_model = saved.get("custom_model", "")
-    st.session_state.recent_questions = saved.get("recent_questions", [])
-    st.session_state.subject = saved.get("subject", "Physics & Mechanics")
-    st.session_state.analogy_theme = saved.get("analogy_theme", "Battle Shonen Anime (Jujutsu Kaisen, Dragon Ball, Solo Leveling)")
-    st.session_state.strictness = saved.get("strictness", "High (Strict Socratic)")
-    st.session_state.detail_level = saved.get("detail_level", "Detailed & Step-by-Step")
+    st.session_state.api_key = ""
+    st.session_state.selected_model = "Auto-Select (Flash & Pro Engine)"
+    st.session_state.custom_model = ""
+    st.session_state.recent_questions = []
+    st.session_state.subject = "Physics & Mechanics"
+    st.session_state.analogy_theme = "Battle Shonen Anime (Jujutsu Kaisen, Dragon Ball, Solo Leveling)"
+    st.session_state.strictness = "High (Strict Socratic)"
+    st.session_state.detail_level = "Detailed & Step-by-Step"
     st.session_state.last_working_model = "Auto-Engine"
     st.session_state.is_generating = False
     
-    last_active = saved.get("last_active", 0)
-    current_time = time.time()
-    saved_messages = saved.get("messages", [])
+    st.session_state.messages = [{
+        "role": "assistant", 
+        "content": f"Welcome back to **CogniPulse AI**! Calibrated for **{st.session_state.subject}**. What problem or concept are we breaking down today?"
+    }]
     
-    if (current_time - last_active < SESSION_TIMEOUT_SECONDS) and saved_messages:
-        st.session_state.messages = saved_messages
-    else:
-        st.session_state.messages = [{
-            "role": "assistant", 
-            "content": f"Welcome back to **CogniPulse AI**! Calibrated for **{st.session_state.subject}**. What problem or concept are we breaking down today?"
-        }]
-        save_data()
-        
     st.session_state.initialized = True
+    st.session_state.ls_loaded = False # Flag to track when localStorage successfully injects data
+
+# Step B: Inject LocalStorage data once the component returns it (Fixes the refresh wipe bug)
+if saved_str and not st.session_state.ls_loaded:
+    try:
+        saved = json.loads(saved_str)
+        st.session_state.api_key = saved.get("api_key", st.session_state.api_key)
+        st.session_state.selected_model = saved.get("selected_model", st.session_state.selected_model)
+        st.session_state.custom_model = saved.get("custom_model", st.session_state.custom_model)
+        st.session_state.recent_questions = saved.get("recent_questions", st.session_state.recent_questions)
+        st.session_state.subject = saved.get("subject", st.session_state.subject)
+        st.session_state.analogy_theme = saved.get("analogy_theme", st.session_state.analogy_theme)
+        st.session_state.strictness = saved.get("strictness", st.session_state.strictness)
+        st.session_state.detail_level = saved.get("detail_level", st.session_state.detail_level)
+        
+        # Restore messages if within the session timeout window
+        last_active = saved.get("last_active", 0)
+        saved_messages = saved.get("messages", [])
+        
+        if (time.time() - last_active < SESSION_TIMEOUT_SECONDS) and saved_messages:
+            st.session_state.messages = saved_messages
+            
+        st.session_state.ls_loaded = True
+        st.rerun() # Force an immediate UI refresh to show the loaded chat
+    except Exception:
+        pass
 
 # -------------------------------------------------------------
-# 4. Custom Responsive UI Styling & Header Stop Button Remover
+# 4. Custom Responsive UI Styling & Header Cleaner
 # -------------------------------------------------------------
 is_gen = st.session_state.get("is_generating", False)
 
@@ -245,7 +257,7 @@ with st.sidebar:
     selected_m = st.selectbox(
         "Select Model Mode",
         model_options,
-        index=0,
+        index=model_options.index(st.session_state.selected_model) if st.session_state.selected_model in model_options else 0,
         key="selected_model",
         on_change=save_data
     )
@@ -263,28 +275,32 @@ with st.sidebar:
 
     # --- Subject & Analogy Theme Engine ---
     st.subheader("📚 Subject & Context")
+    subject_opts = [
+        "Physics & Mechanics", "Mathematics & Calculus", "Computer Science & Python", 
+        "Video Editing & VFX", "History & World Civilizations", "Biology & Anatomy",
+        "Literature & Rhetoric", "Economics & Marketing"
+    ]
     st.selectbox(
         "Current Subject",
-        [
-            "Physics & Mechanics", "Mathematics & Calculus", "Computer Science & Python", 
-            "Video Editing & VFX", "History & World Civilizations", "Biology & Anatomy",
-            "Literature & Rhetoric", "Economics & Marketing"
-        ],
+        subject_opts,
+        index=subject_opts.index(st.session_state.subject) if st.session_state.subject in subject_opts else 0,
         key="subject",
         on_change=save_data
     )
 
+    theme_opts = [
+        "Battle Shonen Anime (Jujutsu Kaisen, Dragon Ball, Solo Leveling)",
+        "Tactical FPS & Gaming (Valorant, CS2)",
+        "Racing Sims & Automotive Mechanics (Forza, NFS)",
+        "PC Hardware & Custom Builds (GPUs, Liquid Cooling)",
+        "Sci-Fi & Cinema (Star Wars, MCU)",
+        "Music Performance (Drums, Tempo, Orchestration)",
+        "Sports & Athletic Strategy", "Everyday Life & Food"
+    ]
     st.selectbox(
         "Analogy Style Engine",
-        [
-            "Battle Shonen Anime (Jujutsu Kaisen, Dragon Ball, Solo Leveling)",
-            "Tactical FPS & Gaming (Valorant, CS2)",
-            "Racing Sims & Automotive Mechanics (Forza, NFS)",
-            "PC Hardware & Custom Builds (GPUs, Liquid Cooling)",
-            "Sci-Fi & Cinema (Star Wars, MCU)",
-            "Music Performance (Drums, Tempo, Orchestration)",
-            "Sports & Athletic Strategy", "Everyday Life & Food"
-        ],
+        theme_opts,
+        index=theme_opts.index(st.session_state.analogy_theme) if st.session_state.analogy_theme in theme_opts else 0,
         key="analogy_theme",
         on_change=save_data
     )
@@ -293,9 +309,11 @@ with st.sidebar:
     
     # --- Guardrail Controls ---
     st.subheader("🛡️ AI Guardrails")
+    strict_opts = ["None (Direct Answers)", "Low (Answer + Guidance)", "Medium (Hints First)", "High (Strict Socratic)"]
     st.select_slider(
         "Anti-Cheat Strictness",
-        options=["None (Direct Answers)", "Low (Answer + Guidance)", "Medium (Hints First)", "High (Strict Socratic)"],
+        options=strict_opts,
+        value=st.session_state.strictness,
         key="strictness",
         on_change=save_data
     )
@@ -303,6 +321,7 @@ with st.sidebar:
     st.radio(
         "Explanation Depth",
         ["Concise & Quick", "Detailed & Step-by-Step"],
+        index=0 if st.session_state.detail_level == "Concise & Quick" else 1,
         horizontal=True,
         key="detail_level",
         on_change=save_data
@@ -593,7 +612,7 @@ if st.session_state.get("is_generating", False):
             st.error(f"Oops! Something went wrong: {str(e)}")
 
     # =====================================================================
-    # DEACTIVATE GENERATION STATE (Restores send button back to normal)
+    # DEACTIVATE GENERATION STATE
     # =====================================================================
     st.session_state.is_generating = False
     st.rerun()
