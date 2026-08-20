@@ -243,7 +243,7 @@ st.markdown(f"""
 with st.sidebar:
     st.title("⚙️ Control Panel")
     
-    if not st.session_state.api_key:
+    if not st.session_state.get("api_key", ""):
         st.info("🔑 Enter Your API Key")
         st.markdown("<div style='font-size: 0.82rem; margin-bottom: 10px;'>Get your free Gemini API key from <a href='https://aistudio.google.com/app/apikey' target='_blank'>Google AI Studio</a>.</div>", unsafe_allow_html=True)
         input_key = st.text_input("Gemini API Key:", type="password")
@@ -263,9 +263,7 @@ with st.sidebar:
 
     st.subheader("🤖 AI Model Engine")
     
-    # -----------------------------------------
-    # UPDATED MODEL SELECTION LIST
-    # -----------------------------------------
+    # Model selection options
     model_options = [
         "Auto-Select (Dynamic API Detection)",
         "gemini-3.6-flash",
@@ -279,10 +277,12 @@ with st.sidebar:
         "Custom Model ID"
     ]
     
+    current_model = st.session_state.get("selected_model", "Auto-Select (Dynamic API Detection)")
+    
     selected_m = st.selectbox(
         "Select Model Mode",
         model_options,
-        index=model_options.index(st.session_state.selected_model) if st.session_state.selected_model in model_options else 0,
+        index=model_options.index(current_model) if current_model in model_options else 0,
         key="selected_model",
         on_change=mark_for_save
     )
@@ -304,10 +304,12 @@ with st.sidebar:
         "Video Editing & VFX", "History & World Civilizations", "Biology & Anatomy",
         "Literature & Rhetoric", "Economics & Marketing"
     ]
+    
+    current_subject = st.session_state.get("subject", subject_opts[0])
     st.selectbox(
         "Current Subject",
         subject_opts,
-        index=subject_opts.index(st.session_state.subject) if st.session_state.subject in subject_opts else 0,
+        index=subject_opts.index(current_subject) if current_subject in subject_opts else 0,
         key="subject",
         on_change=mark_for_save
     )
@@ -321,10 +323,12 @@ with st.sidebar:
         "Music Performance (Drums, Tempo, Orchestration)",
         "Sports & Athletic Strategy", "Everyday Life & Food"
     ]
+    
+    current_theme = st.session_state.get("analogy_theme", theme_opts[0])
     st.selectbox(
         "Analogy Style Engine",
         theme_opts,
-        index=theme_opts.index(st.session_state.analogy_theme) if st.session_state.analogy_theme in theme_opts else 0,
+        index=theme_opts.index(current_theme) if current_theme in theme_opts else 0,
         key="analogy_theme",
         on_change=mark_for_save
     )
@@ -333,18 +337,20 @@ with st.sidebar:
     
     st.subheader("🛡️ AI Guardrails")
     strict_opts = ["None (Direct Answers)", "Low (Answer + Guidance)", "Medium (Hints First)", "High (Strict Socratic)"]
+    
     st.select_slider(
         "Anti-Cheat Strictness",
         options=strict_opts,
-        value=st.session_state.strictness,
+        value=st.session_state.get("strictness", "High (Strict Socratic)"),
         key="strictness",
         on_change=mark_for_save
     )
     
+    current_detail = st.session_state.get("detail_level", "Detailed & Step-by-Step")
     st.radio(
         "Explanation Depth",
         ["Concise & Quick", "Detailed & Step-by-Step"],
-        index=0 if st.session_state.detail_level == "Concise & Quick" else 1,
+        index=0 if current_detail == "Concise & Quick" else 1,
         horizontal=True,
         key="detail_level",
         on_change=mark_for_save
@@ -365,7 +371,7 @@ with st.sidebar:
     if st.button("🗑️ Clear Chat Session", use_container_width=True):
         st.session_state.messages = [{
             "role": "assistant", 
-            "content": f"Chat cleared. What are we studying in **{st.session_state.subject}** today?"
+            "content": f"Chat cleared. What are we studying in **{st.session_state.get('subject', 'Physics & Mechanics')}** today?"
         }]
         st.session_state.is_generating = False
         mark_for_save()
@@ -374,9 +380,10 @@ with st.sidebar:
     st.divider()
     
     st.subheader("🕒 Recent Questions Center")
-    if st.session_state.recent_questions:
+    recent_qs = st.session_state.get("recent_questions", [])
+    if recent_qs:
         st.caption("Click any topic to recall the prompt:")
-        recent_list = list(reversed(st.session_state.recent_questions))[:5]
+        recent_list = list(reversed(recent_qs))[:5]
         
         for idx, item in enumerate(recent_list):
             q_text = item["q"] if isinstance(item, dict) else item
@@ -410,12 +417,12 @@ with col1:
     st.markdown(f"""
     <div class="dashboard-card">
         <div class="card-title">Active Subject</div>
-        <div class="card-value">{st.session_state.subject}</div>
+        <div class="card-value">{st.session_state.get('subject', 'Physics & Mechanics')}</div>
     </div>
     """, unsafe_allow_html=True)
 
 with col2:
-    theme_display = st.session_state.analogy_theme.split(' (')[0]
+    theme_display = st.session_state.get('analogy_theme', 'Battle Shonen Anime').split(' (')[0]
     st.markdown(f"""
     <div class="dashboard-card">
         <div class="card-title">Analogy Engine</div>
@@ -424,7 +431,7 @@ with col2:
     """, unsafe_allow_html=True)
 
 with col3:
-    display_model = st.session_state.get('last_working_model', st.session_state.selected_model.split(' ')[0])
+    display_model = st.session_state.get('last_working_model', st.session_state.get('selected_model', 'Auto').split(' ')[0])
     st.markdown(f"""
     <div class="dashboard-card">
         <div class="card-title">Engine Target</div>
@@ -446,20 +453,22 @@ st.write("")
 # -------------------------------------------------------------
 # 7. System Instructions & Formatting Guardrails
 # -------------------------------------------------------------
-if "None" in st.session_state.strictness:
+current_strictness = st.session_state.get("strictness", "High (Strict Socratic)")
+
+if "None" in current_strictness:
     guardrail_instructions = "CORE RULE: Provide immediate direct answers and complete mathematical step-by-step solutions."
-elif "Low" in st.session_state.strictness:
+elif "Low" in current_strictness:
     guardrail_instructions = "CORE RULE: Give the core direct answer first, followed by a concise breakdown."
-elif "Medium" in st.session_state.strictness:
+elif "Medium" in current_strictness:
     guardrail_instructions = "CORE RULE: Offer targeted hints first. If asked again, provide full direct resolution."
 else:  
     guardrail_instructions = "CORE RULE: Strict Socratic Method. Do not give away final numeric answers immediately. Ask guiding questions to lead the user to self-discovery."
 
 SYSTEM_INSTRUCTION = f"""
 You are CogniPulse, an elite AI Study Assistant and Socratic Tutor.
-Subject Domain: {st.session_state.subject}.
-Analogy Theme Engine: {st.session_state.analogy_theme}.
-Explanation Depth Preference: {st.session_state.detail_level}.
+Subject Domain: {st.session_state.get('subject', 'Physics & Mechanics')}.
+Analogy Theme Engine: {st.session_state.get('analogy_theme', 'Battle Shonen Anime')}.
+Explanation Depth Preference: {st.session_state.get('detail_level', 'Detailed & Step-by-Step')}.
 
 {guardrail_instructions}
 
@@ -471,7 +480,7 @@ STRICT FORMATTING RULES:
 """
 
 # Render Active Chat Feed
-for message in st.session_state.messages:
+for message in st.session_state.get("messages", []):
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
@@ -505,7 +514,7 @@ elif "selected_recent" in st.session_state and st.session_state.selected_recent:
     del st.session_state.selected_recent
 
 if active_prompt:
-    if not st.session_state.api_key:
+    if not st.session_state.get("api_key", ""):
         st.warning("⚠️ Please enter and lock in your Gemini API key in the sidebar control panel first.")
         st.stop()
 
@@ -531,7 +540,7 @@ if st.session_state.get("is_generating", False):
     active_prompt = st.session_state.messages[-1]["content"] if st.session_state.messages else ""
     
     try:
-        client = genai.Client(api_key=st.session_state.api_key)
+        client = genai.Client(api_key=st.session_state.get("api_key", ""))
         prompt_parts = []
         
         for uploaded_file in attached_files:
@@ -563,8 +572,10 @@ if st.session_state.get("is_generating", False):
                 )
                 expected_role = "model" if expected_role == "user" else "user"
 
+        selected_model_val = st.session_state.get("selected_model", "Auto-Select (Dynamic API Detection)")
+        
         # DYNAMIC API MODEL DISCOVERY (Filtered to exclude non-chat/TTS models)
-        if st.session_state.selected_model.startswith("Auto-Select"):
+        if selected_model_val.startswith("Auto-Select"):
             try:
                 discovered_models = []
                 for model_obj in client.models.list():
@@ -585,11 +596,11 @@ if st.session_state.get("is_generating", False):
                     candidates = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
             except Exception:
                 candidates = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-pro", "gemini-1.5-flash"]
-        elif st.session_state.selected_model == "Custom Model ID":
-            custom_val = st.session_state.custom_model.strip()
+        elif selected_model_val == "Custom Model ID":
+            custom_val = st.session_state.get("custom_model", "").strip()
             candidates = [custom_val] if custom_val else ["gemini-2.0-flash", "gemini-1.5-flash"]
         else:
-            candidates = [st.session_state.selected_model, "gemini-2.0-flash", "gemini-1.5-flash"]
+            candidates = [selected_model_val, "gemini-2.0-flash", "gemini-1.5-flash"]
 
         with st.chat_message("assistant"):
             assistant_reply = None
@@ -635,8 +646,9 @@ if st.session_state.get("is_generating", False):
             
             st.session_state.messages.append({"role": "assistant", "content": assistant_reply})
             
+            current_recent = st.session_state.get("recent_questions", [])
             st.session_state.recent_questions = [
-                item for item in st.session_state.recent_questions 
+                item for item in current_recent 
                 if (item.get("q") if isinstance(item, dict) else item) != active_prompt
             ]
             st.session_state.recent_questions.append({
