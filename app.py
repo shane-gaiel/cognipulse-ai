@@ -148,12 +148,13 @@ st.markdown(f"""
         bottom: 1rem !important;
     }}
 
-    /* Position the Stop button right inside the top header toolbar area safely */
+    /* Position the Stop button right next to the title in the header toolbar */
     .header-stop-wrapper {{
         display: {stop_btn_display};
         position: fixed;
-        top: 0.5rem;
-        right: 12.5rem;
+        top: 50%;
+        transform: translateY(-50%);
+        left: 15rem;
         z-index: 99999999;
     }}
 
@@ -161,12 +162,12 @@ st.markdown(f"""
         background-color: #ff4b4b !important;
         color: white !important;
         border: none !important;
-        padding: 0.25rem 0.75rem !important;
-        font-size: 0.8rem !important;
+        padding: 0.15rem 0.55rem !important;
+        font-size: 0.75rem !important;
         font-weight: 700 !important;
         border-radius: 6px !important;
-        min-height: 30px !important;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        min-height: 26px !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
     }}
 
     /* Fix Button Sizing & Smallage in Sidebar */
