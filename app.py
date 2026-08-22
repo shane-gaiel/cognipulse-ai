@@ -84,6 +84,7 @@ if "initialized" not in st.session_state:
     st.session_state.last_working_model = "Auto-Engine"
     st.session_state.is_generating = False
     st.session_state.needs_save = False
+    st.session_state.pending_files = []
     
     st.session_state.messages = [{
         "role": "assistant", 
@@ -121,18 +122,12 @@ if saved_data and not st.session_state.ls_loaded:
     except Exception:
         pass
 
-# Safety check: If the last message is from user and we aren't generating, trigger generation to fix stuck loops
-if st.session_state.messages and st.session_state.messages[-1]["role"] == "user" and not st.session_state.get("is_generating", False):
-    st.session_state.is_generating = True
-
 # -------------------------------------------------------------
-# 4. Custom Responsive UI Styling & Header Cleaner
+# 4. Custom Responsive UI Styling
 # -------------------------------------------------------------
-is_gen = st.session_state.get("is_generating", False)
-
-st.markdown(f"""
+st.markdown("""
 <style>
-    header[data-testid="stHeader"]::before {{
+    header[data-testid="stHeader"]::before {
         content: "🧠 CogniPulse AI";
         font-size: 1.25rem;
         font-weight: 800;
@@ -144,36 +139,19 @@ st.markdown(f"""
         white-space: nowrap;
         z-index: 999999;
         pointer-events: none;
-    }}
+    }
 
-    .main .block-container {{ 
+    .main .block-container { 
         padding-top: 4.5rem !important; 
         padding-bottom: 4rem; 
         max-width: 1200px;
-    }}
+    }
 
-    header [data-testid="stStatusWidget"],
-    [data-testid="stStatusWidget"],
-    .stStatusWidget,
-    header button:not([aria-label]):not([class]),
-    header button[title*="Stop"] {{
-        display: none !important;
-        visibility: hidden !important;
-        opacity: 0 !important;
-        pointer-events: none !important;
-        width: 0 !important;
-        height: 0 !important;
-    }}
-
-    [data-testid="stChatInput"] {{
+    [data-testid="stChatInput"] {
         bottom: 1rem !important;
-    }}
+    }
 
-    {"button[data-testid='stChatInputSubmitButton'] { position: relative !important; }" if is_gen else ""}
-    {"button[data-testid='stChatInputSubmitButton'] svg { display: none !important; }" if is_gen else ""}
-    {"button[data-testid='stChatInputSubmitButton']::after { content: '■' !important; color: #ff4b4b !important; font-size: 1.2rem !important; position: absolute !important; top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important; display: flex !important; align-items: center !important; justify-content: center !important; }" if is_gen else ""}
-
-    .dashboard-card {{
+    .dashboard-card {
         background: var(--secondary-background-color);
         color: var(--text-color);
         border-radius: 14px;
@@ -182,37 +160,37 @@ st.markdown(f"""
         border-left: 5px solid var(--primary-color);
         box-shadow: 0 4px 12px rgba(0,0,0,0.06);
         transition: all 0.25s ease-in-out;
-    }}
-    .dashboard-card:hover {{ 
+    }
+    .dashboard-card:hover { 
         transform: translateY(-2px); 
         box-shadow: 0 8px 20px rgba(0,0,0,0.12); 
-    }}
-    .card-title {{
+    }
+    .card-title {
         font-size: 0.75rem;
         text-transform: uppercase;
         letter-spacing: 0.8px;
         opacity: 0.7;
         margin-bottom: 4px;
         font-weight: 600;
-    }}
-    .card-value {{
+    }
+    .card-value {
         font-size: 1.15rem;
         font-weight: 700;
         color: var(--primary-color);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-    }}
+    }
 
-    .credits-footer {{
+    .credits-footer {
         margin-top: 25px;
         padding: 18px 14px;
         background: var(--secondary-background-color);
         border-radius: 12px;
         text-align: center;
         border-bottom: 3px solid var(--primary-color);
-    }}
-    .contact-btn {{
+    }
+    .contact-btn {
         display: inline-block;
         margin-top: 10px;
         padding: 8px 18px;
@@ -223,17 +201,17 @@ st.markdown(f"""
         font-size: 0.85rem;
         font-weight: 600;
         transition: all 0.25s ease;
-    }}
-    .contact-btn:hover {{ 
+    }
+    .contact-btn:hover { 
         filter: brightness(1.15); 
         transform: translateY(-1px); 
-    }}
+    }
 
-    .stChatMessage {{
+    .stChatMessage {
         border-radius: 12px;
         padding: 12px;
         margin-bottom: 8px;
-    }}
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -263,7 +241,6 @@ with st.sidebar:
 
     st.subheader("🤖 AI Model Engine")
     
-    # Model selection options
     model_options = [
         "Auto-Select (Dynamic API Detection)",
         "gemini-3.6-flash",
@@ -374,6 +351,7 @@ with st.sidebar:
             "content": f"Chat cleared. What are we studying in **{st.session_state.get('subject', 'Physics & Mechanics')}** today?"
         }]
         st.session_state.is_generating = False
+        st.session_state.pending_files = []
         mark_for_save()
         st.rerun()
 
@@ -485,15 +463,19 @@ for message in st.session_state.get("messages", []):
         st.markdown(message["content"])
 
 # -------------------------------------------------------------
-# 8. Inline Attachment & Gemini-Style Native Chat Field
+# 8. Inline Attachment & Native Chat Input
 # -------------------------------------------------------------
 active_prompt = None
-attached_files = []
+raw_files = []
+
+# Disable chat input while generating to prevent conflicting submissions
+chat_disabled = st.session_state.get("is_generating", False)
 
 chat_response = st.chat_input(
     "Ask a question, request a concept breakdown, or share a problem...",
-    accept_file=True,
-    file_type=["png", "jpg", "jpeg", "webp", "pdf", "txt", "py", "js"]
+    accept_file="multiple",
+    file_type=["png", "jpg", "jpeg", "webp", "pdf", "txt", "py", "js"],
+    disabled=chat_disabled
 )
 
 if chat_response:
@@ -506,8 +488,6 @@ if chat_response:
     else:
         active_prompt = str(chat_response)
         raw_files = []
-        
-    attached_files = raw_files if isinstance(raw_files, list) else ([raw_files] if raw_files else [])
 
 elif "selected_recent" in st.session_state and st.session_state.selected_recent:
     active_prompt = st.session_state.selected_recent
@@ -518,7 +498,19 @@ if active_prompt:
         st.warning("⚠️ Please enter and lock in your Gemini API key in the sidebar control panel first.")
         st.stop()
 
-    file_names = [f.name for f in attached_files] if attached_files else []
+    # Save uploaded files into session state so raw bytes persist through st.rerun()
+    st.session_state.pending_files = []
+    file_names = []
+    if raw_files:
+        files_list = raw_files if isinstance(raw_files, list) else [raw_files]
+        for f in files_list:
+            file_names.append(f.name)
+            st.session_state.pending_files.append({
+                "name": f.name,
+                "type": f.type or "application/octet-stream",
+                "bytes": f.getvalue()
+            })
+
     if file_names:
         display_user_content = f"📎 *Attached file(s): {', '.join(file_names)}*\n\n{active_prompt}"
     else:
@@ -527,38 +519,50 @@ if active_prompt:
     st.session_state.messages.append({"role": "user", "content": display_user_content})
     mark_for_save()
 
-    with st.chat_message("user"):
-        st.markdown(display_user_content)
-
     st.session_state.is_generating = True
     st.rerun()
 
 # -------------------------------------------------------------
-# 9. Execution Block (Dynamic API Model Discovery & History Sanitization)
+# 9. Execution Block (Dynamic API Model Discovery & Streaming)
 # -------------------------------------------------------------
 if st.session_state.get("is_generating", False):
+    # Functional control button to stop generation cleanly
+    col_stop, _ = st.columns([1, 4])
+    with col_stop:
+        if st.button("⏹️ Stop Generation", type="secondary", use_container_width=True):
+            st.session_state.is_generating = False
+            st.session_state.pending_files = []
+            st.rerun()
+
     active_prompt = st.session_state.messages[-1]["content"] if st.session_state.messages else ""
     
     try:
         client = genai.Client(api_key=st.session_state.get("api_key", ""))
         prompt_parts = []
         
-        for uploaded_file in attached_files:
-            file_bytes = uploaded_file.getvalue()
-            mime_type = uploaded_file.type or "application/octet-stream"
+        # Retrieve pending file attachments from session state
+        pending_files = st.session_state.get("pending_files", [])
+        for file_info in pending_files:
+            f_bytes = file_info["bytes"]
+            m_type = file_info["type"]
+            f_name = file_info["name"]
             
-            if mime_type.startswith("image/"):
-                prompt_parts.append(types.Part.from_bytes(data=file_bytes, mime_type=mime_type))
+            if m_type.startswith("image/"):
+                prompt_parts.append(types.Part.from_bytes(data=f_bytes, mime_type=m_type))
             else:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{uploaded_file.name}") as tmp:
-                    tmp.write(file_bytes)
+                ext = os.path.splitext(f_name)[1]
+                with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+                    tmp.write(f_bytes)
                     tmp_path = tmp.name
                 
                 uploaded_remote = client.files.upload(file=tmp_path)
                 prompt_parts.append(uploaded_remote)
-                os.remove(tmp_path)
+                try:
+                    os.remove(tmp_path)
+                except Exception:
+                    pass
 
-        # STRICT HISTORY SANITIZATION: Guarantees strict alternating user/model roles for Gemini API
+        # History sanitization: guarantees strict alternating user/model roles for Gemini API
         history = []
         expected_role = "user"
         for m in st.session_state.messages[:-1]:
@@ -574,7 +578,6 @@ if st.session_state.get("is_generating", False):
 
         selected_model_val = st.session_state.get("selected_model", "Auto-Select (Dynamic API Detection)")
         
-        # DYNAMIC API MODEL DISCOVERY (Filtered to exclude non-chat/TTS models)
         if selected_model_val.startswith("Auto-Select"):
             try:
                 discovered_models = []
@@ -584,7 +587,6 @@ if st.session_state.get("is_generating", False):
                         m_name = model_obj.name
                         if m_name.startswith("models/"):
                             m_name = m_name[7:]
-                        # Exclude non-chat or specialized utility models
                         if any(kw in m_name.lower() for kw in ["tts", "embedding", "imagen", "vision-only"]):
                             continue
                         discovered_models.append(m_name)
@@ -635,7 +637,6 @@ if st.session_state.get("is_generating", False):
                 except Exception as model_err:
                     last_exception = model_err
                     err_str = str(model_err).lower()
-                    # Catch fallback conditions including 400/multiturn limitations smoothly
                     if any(code in err_str for code in ["404", "not_found", "503", "unavailable", "resource_exhausted", "high demand", "quota", "400", "invalid_argument", "multiturn"]):
                         continue
                     else:
@@ -656,12 +657,14 @@ if st.session_state.get("is_generating", False):
                 "a": assistant_reply
             })
             
+            # Clear pending file attachments after successful response
+            st.session_state.pending_files = []
             mark_for_save()
 
     except Exception as e:
         error_str = str(e).lower()
         if "404" in error_str or "not_found" in error_str:
-            st.error(f"⚠️ **Model Discovery Error:** No supported text models were found for your API key. Please check your API key permissions or enter a custom model ID in the sidebar.")
+            st.error("⚠️ **Model Discovery Error:** No supported text models were found for your API key. Please check your API key permissions or enter a custom model ID in the sidebar.")
         elif "503" in error_str or "unavailable" in error_str:
             st.info("🚦 **Heavy Traffic Detected:** The AI models are experiencing high demand. Please try again.")
         else:
