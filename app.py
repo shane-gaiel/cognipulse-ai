@@ -111,12 +111,15 @@ if saved_data and not st.session_state.ls_loaded:
         pass
 
 # -------------------------------------------------------------
-# 4. Custom Theme-Adaptive Styling & Button Sizing Fixes
+# 4. Custom Theme-Adaptive Styling & Header Stop Button Layout
 # -------------------------------------------------------------
-st.markdown("""
+is_gen = st.session_state.get("is_generating", False)
+stop_btn_style = "display: inline-block;" if is_gen else "display: none;"
+
+st.markdown(f"""
 <style>
     /* Theme Adaptive Header Title */
-    header[data-testid="stHeader"]::before {
+    header[data-testid="stHeader"]::before {{
         content: "🧠 CogniPulse AI";
         font-size: 1.15rem;
         font-weight: 800;
@@ -128,39 +131,48 @@ st.markdown("""
         white-space: nowrap;
         z-index: 999999;
         pointer-events: none;
-    }
+    }}
 
-    .main .block-container { 
+    .main .block-container {{ 
         padding-top: 4.5rem !important; 
         padding-bottom: 4rem; 
         max-width: 1200px;
-    }
+    }}
 
     /* Completely hide native overlapping status text/spinner animation to prevent blocking custom branding */
-    [data-testid="stStatusWidget"] {
+    [data-testid="stStatusWidget"] {{
         display: none !important;
-    }
+    }}
 
-    [data-testid="stChatInput"] {
+    [data-testid="stChatInput"] {{
         bottom: 1rem !important;
-    }
+    }}
 
     /* Fix Button Sizing & Smallage in Sidebar */
-    .stButton button {
+    .stButton button {{
         min-height: 42px !important;
         font-weight: 600 !important;
         border-radius: 10px !important;
         padding: 0.5rem 1rem !important;
         box-shadow: 0 2px 6px rgba(0,0,0,0.06);
         transition: all 0.2s ease;
-    }
+    }}
     
-    .stButton button:hover {
+    .stButton button:hover {{
         transform: translateY(-1px);
         filter: brightness(1.05);
-    }
+    }}
 
-    .dashboard-card {
+    /* Header Stop Button Injection Container Styling */
+    .header-stop-container {{
+        {stop_btn_style}
+        position: fixed;
+        top: 0.55rem;
+        right: 12.5rem;
+        z-index: 9999999;
+    }}
+
+    .dashboard-card {{
         background: var(--secondary-background-color);
         color: var(--text-color);
         border-radius: 14px;
@@ -169,12 +181,12 @@ st.markdown("""
         border-left: 5px solid var(--primary-color);
         box-shadow: 0 4px 12px rgba(0,0,0,0.06);
         transition: all 0.25s ease-in-out;
-    }
-    .dashboard-card:hover { 
+    }}
+    .dashboard-card:hover {{ 
         transform: translateY(-2px); 
         box-shadow: 0 8px 20px rgba(0,0,0,0.12); 
-    }
-    .card-title {
+    }}
+    .card-title {{
         font-size: 0.75rem;
         text-transform: uppercase;
         letter-spacing: 0.8px;
@@ -182,17 +194,17 @@ st.markdown("""
         margin-bottom: 4px;
         font-weight: 600;
         color: var(--text-color);
-    }
-    .card-value {
+    }}
+    .card-value {{
         font-size: 1.15rem;
         font-weight: 700;
         color: var(--primary-color);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-    }
+    }}
 
-    .credits-footer {
+    .credits-footer {{
         margin-top: 25px;
         padding: 18px 14px;
         background: var(--secondary-background-color);
@@ -200,11 +212,11 @@ st.markdown("""
         border-radius: 12px;
         text-align: center;
         border-bottom: 3px solid var(--primary-color);
-    }
-    .credits-footer span {
+    }}
+    .credits-footer span {{
         color: var(--text-color) !important;
-    }
-    .contact-btn {
+    }}
+    .contact-btn {{
         display: inline-block;
         margin-top: 10px;
         padding: 8px 18px;
@@ -216,23 +228,33 @@ st.markdown("""
         font-weight: 600;
         transition: all 0.25s ease;
         box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-    }
-    .contact-btn:hover { 
+    }}
+    .contact-btn:hover {{ 
         filter: brightness(1.15); 
         transform: translateY(-1px); 
         color: #ffffff !important;
-    }
+    }}
 
-    .stChatMessage {
+    .stChatMessage {{
         border-radius: 12px;
         padding: 12px;
         margin-bottom: 8px;
-    }
+    }}
 </style>
 """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 5. Sidebar Control Panel
+# 5. Header Action Button (Stop Generation Button)
+# -------------------------------------------------------------
+if is_gen:
+    st.markdown('<div class="header-stop-container">', unsafe_allow_html=True)
+    if st.button("⏹️ Stop", key="header_stop_gen_btn", type="secondary"):
+        st.session_state.is_generating = False
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# -------------------------------------------------------------
+# 6. Sidebar Control Panel
 # -------------------------------------------------------------
 with st.sidebar:
     st.title("⚙️ Control Panel")
@@ -403,7 +425,7 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 6. Dynamic Dashboard
+# 7. Dynamic Dashboard
 # -------------------------------------------------------------
 col1, col2, col3, col4 = st.columns(4)
 with col1:
@@ -441,20 +463,10 @@ with col4:
     </div>
     """, unsafe_allow_html=True)
 
-# Status indicator bar displaying red ■ sign during generation cleanly
-if st.session_state.get("is_generating", False):
-    st.markdown("""
-    <div style="background-color: rgba(255, 75, 75, 0.12); border: 1px solid rgba(255, 75, 75, 0.3); padding: 8px 14px; border-radius: 8px; margin-top: 12px; display: flex; align-items: center; justify-content: space-between;">
-        <span style="font-weight: 600; font-size: 0.9rem; color: var(--text-color);">
-            <span style="color: #ff4b4b; font-size: 1.1rem; margin-right: 6px;">■</span> Generating Response...
-        </span>
-    </div>
-    """, unsafe_allow_html=True)
-
 st.write("")
 
 # -------------------------------------------------------------
-# 7. System Instructions & Formatting Guardrails
+# 8. System Instructions & Formatting Guardrails
 # -------------------------------------------------------------
 current_strictness = st.session_state.get("strictness", "High (Strict Socratic)")
 
@@ -488,7 +500,7 @@ for message in st.session_state.get("messages", []):
         st.markdown(message["content"])
 
 # -------------------------------------------------------------
-# 8. Chat Field Logic
+# 9. Chat Field Logic
 # -------------------------------------------------------------
 active_prompt = None
 raw_files = []
@@ -541,7 +553,7 @@ if active_prompt:
     st.rerun()
 
 # -------------------------------------------------------------
-# 9. Execution Block (Streaming & Dynamic Model Discovery)
+# 10. Execution Block (Streaming & Dynamic Model Discovery)
 # -------------------------------------------------------------
 if st.session_state.get("is_generating", False):
     active_prompt = st.session_state.messages[-1]["content"] if st.session_state.messages else ""
@@ -681,7 +693,7 @@ if st.session_state.get("is_generating", False):
     st.rerun()
 
 # -------------------------------------------------------------
-# 10. Execute Safely Staged Saves
+# 11. Execute Safely Staged Saves
 # -------------------------------------------------------------
 if st.session_state.get("needs_save", False):
     execute_save()
