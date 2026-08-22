@@ -3,7 +3,6 @@ import json
 import time
 import tempfile
 import streamlit as st
-import streamlit.components.v1 as components
 from google import genai
 from google.genai import types
 from streamlit_local_storage import LocalStorage
@@ -27,7 +26,7 @@ except Exception:
 SESSION_TIMEOUT_SECONDS = 3600  # 1 Hour session window
 
 # -------------------------------------------------------------
-# 2. Local Storage Saving Helpers (Bulletproof)
+# 2. Local Storage Saving Helpers
 # -------------------------------------------------------------
 def mark_for_save():
     """Sets a flag to safely trigger a save during the main script run."""
@@ -72,7 +71,6 @@ if localStorage is not None:
     except Exception:
         pass
 
-# Step A: Initialize defaults on the very first script run
 if "initialized" not in st.session_state:
     st.session_state.api_key = ""
     st.session_state.selected_model = "Auto-Select (Dynamic API Detection)"
@@ -95,7 +93,6 @@ if "initialized" not in st.session_state:
     st.session_state.initialized = True
     st.session_state.ls_loaded = False 
 
-# Step B: Inject LocalStorage data once the component returns it
 if saved_data and not st.session_state.ls_loaded:
     try:
         if isinstance(saved_data, dict):
@@ -124,14 +121,12 @@ if saved_data and not st.session_state.ls_loaded:
         pass
 
 # -------------------------------------------------------------
-# 4. Custom Theme-Adaptive Styling & Clean Header
+# 4. Custom Theme-Adaptive Styling
 # -------------------------------------------------------------
-is_gen = st.session_state.get("is_generating", False)
-
-st.markdown(f"""
+st.markdown("""
 <style>
     /* Theme Adaptive Header Title */
-    header[data-testid="stHeader"]::before {{
+    header[data-testid="stHeader"]::before {
         content: "🧠 CogniPulse AI";
         font-size: 1.25rem;
         font-weight: 800;
@@ -143,43 +138,26 @@ st.markdown(f"""
         white-space: nowrap;
         z-index: 999999;
         pointer-events: none;
-    }}
+    }
 
-    .main .block-container {{ 
+    .main .block-container { 
         padding-top: 4.5rem !important; 
         padding-bottom: 4rem; 
         max-width: 1200px;
-    }}
+    }
 
-    /* Customize the Status Widget at Top Right */
-    [data-testid="stStatusWidget"] {{
-        background: transparent !important;
-    }}
-    /* Hide the native "Stop" button entirely but keep the loading animation */
-    [data-testid="stStatusWidget"] button {{
-        display: none !important;
-    }}
-    /* Adjust the text ("Connecting...", "Running...") so it doesn't overlap the logo */
-    [data-testid="stStatusWidget"] label, [data-testid="stStatusWidget"] p, [data-testid="stStatusWidget"] span {{
-        font-size: 0.65rem !important;
-        color: var(--text-color) !important;
-        opacity: 0.75;
-        max-width: 100px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }}
+    /* Native Status Widget Styling - Keeps Native Stop Button Fully Functional */
+    [data-testid="stStatusWidget"] {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+    }
 
-    [data-testid="stChatInput"] {{
+    [data-testid="stChatInput"] {
         bottom: 1rem !important;
-    }}
+    }
 
-    /* Turn Send Button into '■' Stop Button during Generation */
-    {"button[data-testid='stChatInputSubmitButton'] { position: relative !important; background-color: rgba(255, 75, 75, 0.15) !important; border: 1px solid #ff4b4b !important; pointer-events: auto !important; cursor: pointer !important; }" if is_gen else ""}
-    {"button[data-testid='stChatInputSubmitButton'] svg { display: none !important; }" if is_gen else ""}
-    {"button[data-testid='stChatInputSubmitButton']::after { content: '■' !important; color: #ff4b4b !important; font-size: 1.25rem !important; font-weight: bold !important; position: absolute !important; top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important; display: flex !important; align-items: center !important; justify-content: center !important; }" if is_gen else ""}
-
-    .dashboard-card {{
+    .dashboard-card {
         background: var(--secondary-background-color);
         color: var(--text-color);
         border-radius: 14px;
@@ -188,12 +166,12 @@ st.markdown(f"""
         border-left: 5px solid var(--primary-color);
         box-shadow: 0 4px 12px rgba(0,0,0,0.06);
         transition: all 0.25s ease-in-out;
-    }}
-    .dashboard-card:hover {{ 
+    }
+    .dashboard-card:hover { 
         transform: translateY(-2px); 
         box-shadow: 0 8px 20px rgba(0,0,0,0.12); 
-    }}
-    .card-title {{
+    }
+    .card-title {
         font-size: 0.75rem;
         text-transform: uppercase;
         letter-spacing: 0.8px;
@@ -201,17 +179,17 @@ st.markdown(f"""
         margin-bottom: 4px;
         font-weight: 600;
         color: var(--text-color);
-    }}
-    .card-value {{
+    }
+    .card-value {
         font-size: 1.15rem;
         font-weight: 700;
         color: var(--primary-color);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-    }}
+    }
 
-    .credits-footer {{
+    .credits-footer {
         margin-top: 25px;
         padding: 18px 14px;
         background: var(--secondary-background-color);
@@ -219,34 +197,34 @@ st.markdown(f"""
         border-radius: 12px;
         text-align: center;
         border-bottom: 3px solid var(--primary-color);
-    }}
-    .credits-footer span {{
+    }
+    .credits-footer span {
         color: var(--text-color) !important;
-    }}
-    .contact-btn {{
+    }
+    .contact-btn {
         display: inline-block;
         margin-top: 10px;
         padding: 8px 18px;
         background-color: var(--primary-color, #ff4b4b);
-        color: #ffffff !important; /* Forces white text on color buttons */
+        color: #ffffff !important;
         text-decoration: none;
         border-radius: 20px;
         font-size: 0.85rem;
         font-weight: 600;
         transition: all 0.25s ease;
         box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-    }}
-    .contact-btn:hover {{ 
+    }
+    .contact-btn:hover { 
         filter: brightness(1.15); 
         transform: translateY(-1px); 
         color: #ffffff !important;
-    }}
+    }
 
-    .stChatMessage {{
+    .stChatMessage {
         border-radius: 12px;
         padding: 12px;
         margin-bottom: 8px;
-    }}
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -498,7 +476,7 @@ for message in st.session_state.get("messages", []):
         st.markdown(message["content"])
 
 # -------------------------------------------------------------
-# 8. Chat Field & Stop Trigger Logic
+# 8. Chat Field Logic
 # -------------------------------------------------------------
 active_prompt = None
 raw_files = []
@@ -509,13 +487,7 @@ chat_response = st.chat_input(
     file_type=["png", "jpg", "jpeg", "webp", "pdf", "txt", "py", "js"]
 )
 
-# Trap logic in case user submits a text string rapidly while it is already generating
 if chat_response:
-    if st.session_state.get("is_generating", False):
-        st.session_state.is_generating = False
-        st.session_state.pending_files = []
-        st.rerun()
-
     if isinstance(chat_response, dict):
         active_prompt = chat_response.get("text", "")
         raw_files = chat_response.get("files", [])
@@ -562,50 +534,6 @@ if active_prompt:
 # 9. Execution Block (Streaming & Dynamic Model Discovery)
 # -------------------------------------------------------------
 if st.session_state.get("is_generating", False):
-    
-    # --------------------------------------------------------------------------
-    # JS Injection: Safe interaction bridging the '■' to Native Stop mechanism
-    # --------------------------------------------------------------------------
-    components.html("""
-    <script>
-    const doc = window.parent.document;
-    const observer = new MutationObserver(() => {
-        const sendBtn = doc.querySelector('button[data-testid="stChatInputSubmitButton"]');
-        if (sendBtn) {
-            // Un-disable button so it receives clicks properly
-            if (sendBtn.disabled) { sendBtn.disabled = false; }
-            sendBtn.style.pointerEvents = 'auto';
-            
-            if (!sendBtn.dataset.stopHooked) {
-                sendBtn.dataset.stopHooked = "true";
-                sendBtn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    
-                    // Natively trigger Streamlit's Stop interrupt
-                    const statusWidget = doc.querySelector('[data-testid="stStatusWidget"]');
-                    if (statusWidget) {
-                        const stopBtn = statusWidget.querySelector('button');
-                        if (stopBtn) stopBtn.click();
-                    }
-                    
-                    // Instantly clean up UI style feedback
-                    const style = doc.createElement('style');
-                    style.innerHTML = `
-                        button[data-testid='stChatInputSubmitButton']::after { display: none !important; }
-                        button[data-testid='stChatInputSubmitButton'] svg { display: block !important; fill: var(--text-color) !important; }
-                        button[data-testid='stChatInputSubmitButton'] { background-color: transparent !important; border: none !important; }
-                    `;
-                    doc.head.appendChild(style);
-                });
-            }
-        }
-    });
-    observer.observe(doc.body, { childList: true, subtree: true });
-    </script>
-    """, height=0, width=0)
-    # --------------------------------------------------------------------------
-
     active_prompt = st.session_state.messages[-1]["content"] if st.session_state.messages else ""
     
     try:
@@ -699,8 +627,6 @@ if st.session_state.get("is_generating", False):
 
                     def stream_generator():
                         for chunk in response_stream:
-                            if not st.session_state.get("is_generating", True):
-                                break
                             if chunk.text:
                                 yield chunk.text
 
