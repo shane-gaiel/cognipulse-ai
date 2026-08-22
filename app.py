@@ -123,15 +123,18 @@ if saved_data and not st.session_state.ls_loaded:
         pass
 
 # -------------------------------------------------------------
-# 4. Custom Responsive UI Styling
+# 4. Custom Theme-Adaptive Styling & Clean Header
 # -------------------------------------------------------------
-st.markdown("""
+is_gen = st.session_state.get("is_generating", False)
+
+st.markdown(f"""
 <style>
-    header[data-testid="stHeader"]::before {
+    /* Theme Adaptive Header Title */
+    header[data-testid="stHeader"]::before {{
         content: "🧠 CogniPulse AI";
         font-size: 1.25rem;
         font-weight: 800;
-        color: var(--text-color, #ffffff);
+        color: var(--text-color, inherit) !important;
         position: absolute;
         left: 4.2rem;
         top: 50%;
@@ -139,79 +142,102 @@ st.markdown("""
         white-space: nowrap;
         z-index: 999999;
         pointer-events: none;
-    }
+    }}
 
-    .main .block-container { 
+    .main .block-container {{ 
         padding-top: 4.5rem !important; 
         padding-bottom: 4rem; 
         max-width: 1200px;
-    }
+    }}
 
-    [data-testid="stChatInput"] {
+    /* Completely hide Streamlit's top header status widget and Stop button */
+    [data-testid="stStatusWidget"],
+    .stStatusWidget {{
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        width: 0 !important;
+        height: 0 !important;
+    }}
+
+    [data-testid="stChatInput"] {{
         bottom: 1rem !important;
-    }
+    }}
 
-    .dashboard-card {
+    /* Turn Send Button into '■' Stop Button during Generation */
+    {"button[data-testid='stChatInputSubmitButton'] { position: relative !important; background-color: rgba(255, 75, 75, 0.15) !important; border: 1px solid #ff4b4b !important; }" if is_gen else ""}
+    {"button[data-testid='stChatInputSubmitButton'] svg { display: none !important; }" if is_gen else ""}
+    {"button[data-testid='stChatInputSubmitButton']::after { content: '■' !important; color: #ff4b4b !important; font-size: 1.25rem !important; font-weight: bold !important; position: absolute !important; top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important; display: flex !important; align-items: center !important; justify-content: center !important; }" if is_gen else ""}
+
+    .dashboard-card {{
         background: var(--secondary-background-color);
         color: var(--text-color);
         border-radius: 14px;
         padding: 16px 20px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(128, 128, 128, 0.15);
         border-left: 5px solid var(--primary-color);
         box-shadow: 0 4px 12px rgba(0,0,0,0.06);
         transition: all 0.25s ease-in-out;
-    }
-    .dashboard-card:hover { 
+    }}
+    .dashboard-card:hover {{ 
         transform: translateY(-2px); 
         box-shadow: 0 8px 20px rgba(0,0,0,0.12); 
-    }
-    .card-title {
+    }}
+    .card-title {{
         font-size: 0.75rem;
         text-transform: uppercase;
         letter-spacing: 0.8px;
-        opacity: 0.7;
+        opacity: 0.75;
         margin-bottom: 4px;
         font-weight: 600;
-    }
-    .card-value {
+        color: var(--text-color);
+    }}
+    .card-value {{
         font-size: 1.15rem;
         font-weight: 700;
         color: var(--primary-color);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-    }
+    }}
 
-    .credits-footer {
+    .credits-footer {{
         margin-top: 25px;
         padding: 18px 14px;
         background: var(--secondary-background-color);
+        color: var(--text-color) !important;
         border-radius: 12px;
         text-align: center;
         border-bottom: 3px solid var(--primary-color);
-    }
-    .contact-btn {
+    }}
+    .credits-footer span {{
+        color: var(--text-color) !important;
+    }}
+    .contact-btn {{
         display: inline-block;
         margin-top: 10px;
         padding: 8px 18px;
-        background-color: var(--primary-color);
+        background-color: var(--primary-color, #ff4b4b);
         color: #ffffff !important;
         text-decoration: none;
         border-radius: 20px;
         font-size: 0.85rem;
         font-weight: 600;
         transition: all 0.25s ease;
-    }
-    .contact-btn:hover { 
+        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    }}
+    .contact-btn:hover {{ 
         filter: brightness(1.15); 
         transform: translateY(-1px); 
-    }
+        color: #ffffff !important;
+    }}
 
-    .stChatMessage {
+    .stChatMessage {{
         border-radius: 12px;
         padding: 12px;
         margin-bottom: 8px;
-    }
+    }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -381,7 +407,7 @@ with st.sidebar:
 
     st.markdown("""
     <div class="credits-footer">
-        <span style="font-size: 0.8rem; opacity: 0.7;">Project created by</span><br>
+        <span style="font-size: 0.8rem; opacity: 0.85;">Project created by</span><br>
         <span style="font-weight: 700; font-size: 1.1rem; letter-spacing: 0.5px;">Shane Gaiel</span><br>
         <a href="https://linktr.ee/shane.gaiel" target="_blank" class="contact-btn">Contact me on Linktree</a>
     </div>
@@ -463,22 +489,24 @@ for message in st.session_state.get("messages", []):
         st.markdown(message["content"])
 
 # -------------------------------------------------------------
-# 8. Inline Attachment & Native Chat Input
+# 8. Chat Field & Stop Trigger Logic
 # -------------------------------------------------------------
 active_prompt = None
 raw_files = []
 
-# Disable chat input while generating to prevent conflicting submissions
-chat_disabled = st.session_state.get("is_generating", False)
-
 chat_response = st.chat_input(
     "Ask a question, request a concept breakdown, or share a problem...",
     accept_file="multiple",
-    file_type=["png", "jpg", "jpeg", "webp", "pdf", "txt", "py", "js"],
-    disabled=chat_disabled
+    file_type=["png", "jpg", "jpeg", "webp", "pdf", "txt", "py", "js"]
 )
 
+# Pressing '■' send button while generating immediately stops generation
 if chat_response:
+    if st.session_state.get("is_generating", False):
+        st.session_state.is_generating = False
+        st.session_state.pending_files = []
+        st.rerun()
+
     if isinstance(chat_response, dict):
         active_prompt = chat_response.get("text", "")
         raw_files = chat_response.get("files", [])
@@ -498,7 +526,6 @@ if active_prompt:
         st.warning("⚠️ Please enter and lock in your Gemini API key in the sidebar control panel first.")
         st.stop()
 
-    # Save uploaded files into session state so raw bytes persist through st.rerun()
     st.session_state.pending_files = []
     file_names = []
     if raw_files:
@@ -523,24 +550,15 @@ if active_prompt:
     st.rerun()
 
 # -------------------------------------------------------------
-# 9. Execution Block (Dynamic API Model Discovery & Streaming)
+# 9. Execution Block (Streaming & Dynamic Model Discovery)
 # -------------------------------------------------------------
 if st.session_state.get("is_generating", False):
-    # Functional control button to stop generation cleanly
-    col_stop, _ = st.columns([1, 4])
-    with col_stop:
-        if st.button("⏹️ Stop Generation", type="secondary", use_container_width=True):
-            st.session_state.is_generating = False
-            st.session_state.pending_files = []
-            st.rerun()
-
     active_prompt = st.session_state.messages[-1]["content"] if st.session_state.messages else ""
     
     try:
         client = genai.Client(api_key=st.session_state.get("api_key", ""))
         prompt_parts = []
         
-        # Retrieve pending file attachments from session state
         pending_files = st.session_state.get("pending_files", [])
         for file_info in pending_files:
             f_bytes = file_info["bytes"]
@@ -628,6 +646,8 @@ if st.session_state.get("is_generating", False):
 
                     def stream_generator():
                         for chunk in response_stream:
+                            if not st.session_state.get("is_generating", True):
+                                break
                             if chunk.text:
                                 yield chunk.text
 
@@ -657,7 +677,6 @@ if st.session_state.get("is_generating", False):
                 "a": assistant_reply
             })
             
-            # Clear pending file attachments after successful response
             st.session_state.pending_files = []
             mark_for_save()
 
