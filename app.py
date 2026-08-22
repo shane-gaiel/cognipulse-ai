@@ -26,14 +26,14 @@ except Exception:
 SESSION_TIMEOUT_SECONDS = 3600  # 1 Hour session window
 
 # -------------------------------------------------------------
-# 2. Local Storage Saving Helpers
+# 2. Local Storage Saving Helpers (Optimized for Fast Load)
 # -------------------------------------------------------------
 def mark_for_save():
     """Sets a flag to safely trigger a save during the main script run."""
     st.session_state.needs_save = True
 
 def execute_save():
-    """Writes the current state to browser local storage safely."""
+    """Writes only lightweight preferences to browser local storage to eliminate lag."""
     if localStorage is None:
         return
     try:
@@ -41,13 +41,11 @@ def execute_save():
             "api_key": st.session_state.get("api_key", ""),
             "selected_model": st.session_state.get("selected_model", "Auto-Select (Dynamic API Detection)"),
             "custom_model": st.session_state.get("custom_model", ""),
-            "messages": st.session_state.get("messages", []),
-            "last_active": time.time(),
-            "recent_questions": st.session_state.get("recent_questions", []),
             "subject": st.session_state.get("subject", "Physics & Mechanics"),
             "analogy_theme": st.session_state.get("analogy_theme", "Battle Shonen Anime (Jujutsu Kaisen, Dragon Ball, Solo Leveling)"),
             "strictness": st.session_state.get("strictness", "High (Strict Socratic)"),
-            "detail_level": st.session_state.get("detail_level", "Detailed & Step-by-Step")
+            "detail_level": st.session_state.get("detail_level", "Detailed & Step-by-Step"),
+            "last_active": time.time()
         }
         
         data_str = json.dumps(data)
@@ -103,25 +101,17 @@ if saved_data and not st.session_state.ls_loaded:
         st.session_state.api_key = saved.get("api_key", st.session_state.api_key)
         st.session_state.selected_model = saved.get("selected_model", st.session_state.selected_model)
         st.session_state.custom_model = saved.get("custom_model", st.session_state.custom_model)
-        st.session_state.recent_questions = saved.get("recent_questions", st.session_state.recent_questions)
         st.session_state.subject = saved.get("subject", st.session_state.subject)
         st.session_state.analogy_theme = saved.get("analogy_theme", st.session_state.analogy_theme)
         st.session_state.strictness = saved.get("strictness", st.session_state.strictness)
         st.session_state.detail_level = saved.get("detail_level", st.session_state.detail_level)
-        
-        last_active = saved.get("last_active", 0)
-        saved_messages = saved.get("messages", [])
-        
-        if (time.time() - last_active < SESSION_TIMEOUT_SECONDS) and saved_messages:
-            st.session_state.messages = saved_messages
             
         st.session_state.ls_loaded = True
-        st.rerun() 
     except Exception:
         pass
 
 # -------------------------------------------------------------
-# 4. Custom Theme-Adaptive Styling & Header Overlap Fix
+# 4. Custom Theme-Adaptive Styling & Button Sizing Fixes
 # -------------------------------------------------------------
 st.markdown("""
 <style>
@@ -153,6 +143,21 @@ st.markdown("""
 
     [data-testid="stChatInput"] {
         bottom: 1rem !important;
+    }
+
+    /* Fix Button Sizing & Smallage in Sidebar */
+    .stButton button {
+        min-height: 42px !important;
+        font-weight: 600 !important;
+        border-radius: 10px !important;
+        padding: 0.5rem 1rem !important;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+        transition: all 0.2s ease;
+    }
+    
+    .stButton button:hover {
+        transform: translateY(-1px);
+        filter: brightness(1.05);
     }
 
     .dashboard-card {
@@ -385,7 +390,6 @@ with st.sidebar:
                     st.session_state.messages.append({"role": "assistant", "content": a_text})
                 else:
                     st.session_state.selected_recent = q_text
-                mark_for_save()
                 st.rerun()
     else:
         st.caption("No recent questions logged yet.")
@@ -437,7 +441,7 @@ with col4:
     </div>
     """, unsafe_allow_html=True)
 
-# Status indicator bar displaying red ■ sign during generation to replace the native stop text cleanly
+# Status indicator bar displaying red ■ sign during generation cleanly
 if st.session_state.get("is_generating", False):
     st.markdown("""
     <div style="background-color: rgba(255, 75, 75, 0.12); border: 1px solid rgba(255, 75, 75, 0.3); padding: 8px 14px; border-radius: 8px; margin-top: 12px; display: flex; align-items: center; justify-content: space-between;">
@@ -533,8 +537,6 @@ if active_prompt:
         display_user_content = active_prompt
 
     st.session_state.messages.append({"role": "user", "content": display_user_content})
-    mark_for_save()
-
     st.session_state.is_generating = True
     st.rerun()
 
@@ -665,7 +667,6 @@ if st.session_state.get("is_generating", False):
             })
             
             st.session_state.pending_files = []
-            mark_for_save()
 
     except Exception as e:
         error_str = str(e).lower()
