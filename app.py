@@ -121,18 +121,18 @@ if saved_data and not st.session_state.ls_loaded:
         pass
 
 # -------------------------------------------------------------
-# 4. Custom Theme-Adaptive Styling
+# 4. Custom Theme-Adaptive Styling & Header Overlap Fix
 # -------------------------------------------------------------
 st.markdown("""
 <style>
     /* Theme Adaptive Header Title */
     header[data-testid="stHeader"]::before {
         content: "🧠 CogniPulse AI";
-        font-size: 1.25rem;
+        font-size: 1.15rem;
         font-weight: 800;
         color: var(--text-color) !important;
         position: absolute;
-        left: 4.2rem;
+        left: 3.8rem;
         top: 50%;
         transform: translateY(-50%);
         white-space: nowrap;
@@ -146,11 +146,9 @@ st.markdown("""
         max-width: 1200px;
     }
 
-    /* Native Status Widget Styling - Keeps Native Stop Button Fully Functional */
+    /* Completely hide native overlapping status text/spinner animation to prevent blocking custom branding */
     [data-testid="stStatusWidget"] {
-        display: flex !important;
-        visibility: visible !important;
-        opacity: 1 !important;
+        display: none !important;
     }
 
     [data-testid="stChatInput"] {
@@ -436,6 +434,16 @@ with col4:
     <div class="dashboard-card">
         <div class="card-title">Session Turns</div>
         <div class="card-value">{turn_count} Turns</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# Status indicator bar displaying red ■ sign during generation to replace the native stop text cleanly
+if st.session_state.get("is_generating", False):
+    st.markdown("""
+    <div style="background-color: rgba(255, 75, 75, 0.12); border: 1px solid rgba(255, 75, 75, 0.3); padding: 8px 14px; border-radius: 8px; margin-top: 12px; display: flex; align-items: center; justify-content: space-between;">
+        <span style="font-weight: 600; font-size: 0.9rem; color: var(--text-color);">
+            <span style="color: #ff4b4b; font-size: 1.1rem; margin-right: 6px;">■</span> Generating Response...
+        </span>
     </div>
     """, unsafe_allow_html=True)
 
