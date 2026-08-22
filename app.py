@@ -3,6 +3,7 @@ import json
 import time
 import tempfile
 import streamlit as st
+import streamlit.components.v1 as components
 from google import genai
 from google.genai import types
 from streamlit_local_storage import LocalStorage
@@ -134,7 +135,7 @@ st.markdown(f"""
         content: "🧠 CogniPulse AI";
         font-size: 1.25rem;
         font-weight: 800;
-        color: var(--text-color, inherit) !important;
+        color: var(--text-color) !important;
         position: absolute;
         left: 4.2rem;
         top: 50%;
@@ -150,15 +151,23 @@ st.markdown(f"""
         max-width: 1200px;
     }}
 
-    /* Completely hide Streamlit's top header status widget and Stop button */
-    [data-testid="stStatusWidget"],
-    .stStatusWidget {{
+    /* Customize the Status Widget at Top Right */
+    [data-testid="stStatusWidget"] {{
+        background: transparent !important;
+    }}
+    /* Hide the native "Stop" button entirely but keep the loading animation */
+    [data-testid="stStatusWidget"] button {{
         display: none !important;
-        visibility: hidden !important;
-        opacity: 0 !important;
-        pointer-events: none !important;
-        width: 0 !important;
-        height: 0 !important;
+    }}
+    /* Adjust the text ("Connecting...", "Running...") so it doesn't overlap the logo */
+    [data-testid="stStatusWidget"] label, [data-testid="stStatusWidget"] p, [data-testid="stStatusWidget"] span {{
+        font-size: 0.65rem !important;
+        color: var(--text-color) !important;
+        opacity: 0.75;
+        max-width: 100px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }}
 
     [data-testid="stChatInput"] {{
@@ -166,7 +175,7 @@ st.markdown(f"""
     }}
 
     /* Turn Send Button into '■' Stop Button during Generation */
-    {"button[data-testid='stChatInputSubmitButton'] { position: relative !important; background-color: rgba(255, 75, 75, 0.15) !important; border: 1px solid #ff4b4b !important; }" if is_gen else ""}
+    {"button[data-testid='stChatInputSubmitButton'] { position: relative !important; background-color: rgba(255, 75, 75, 0.15) !important; border: 1px solid #ff4b4b !important; pointer-events: auto !important; cursor: pointer !important; }" if is_gen else ""}
     {"button[data-testid='stChatInputSubmitButton'] svg { display: none !important; }" if is_gen else ""}
     {"button[data-testid='stChatInputSubmitButton']::after { content: '■' !important; color: #ff4b4b !important; font-size: 1.25rem !important; font-weight: bold !important; position: absolute !important; top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important; display: flex !important; align-items: center !important; justify-content: center !important; }" if is_gen else ""}
 
@@ -219,7 +228,7 @@ st.markdown(f"""
         margin-top: 10px;
         padding: 8px 18px;
         background-color: var(--primary-color, #ff4b4b);
-        color: #ffffff !important;
+        color: #ffffff !important; /* Forces white text on color buttons */
         text-decoration: none;
         border-radius: 20px;
         font-size: 0.85rem;
@@ -500,7 +509,7 @@ chat_response = st.chat_input(
     file_type=["png", "jpg", "jpeg", "webp", "pdf", "txt", "py", "js"]
 )
 
-# Pressing '■' send button while generating immediately stops generation
+# Trap logic in case user submits a text string rapidly while it is already generating
 if chat_response:
     if st.session_state.get("is_generating", False):
         st.session_state.is_generating = False
@@ -553,6 +562,50 @@ if active_prompt:
 # 9. Execution Block (Streaming & Dynamic Model Discovery)
 # -------------------------------------------------------------
 if st.session_state.get("is_generating", False):
+    
+    # --------------------------------------------------------------------------
+    # JS Injection: Safe interaction bridging the '■' to Native Stop mechanism
+    # --------------------------------------------------------------------------
+    components.html("""
+    <script>
+    const doc = window.parent.document;
+    const observer = new MutationObserver(() => {
+        const sendBtn = doc.querySelector('button[data-testid="stChatInputSubmitButton"]');
+        if (sendBtn) {
+            // Un-disable button so it receives clicks properly
+            if (sendBtn.disabled) { sendBtn.disabled = false; }
+            sendBtn.style.pointerEvents = 'auto';
+            
+            if (!sendBtn.dataset.stopHooked) {
+                sendBtn.dataset.stopHooked = "true";
+                sendBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // Natively trigger Streamlit's Stop interrupt
+                    const statusWidget = doc.querySelector('[data-testid="stStatusWidget"]');
+                    if (statusWidget) {
+                        const stopBtn = statusWidget.querySelector('button');
+                        if (stopBtn) stopBtn.click();
+                    }
+                    
+                    // Instantly clean up UI style feedback
+                    const style = doc.createElement('style');
+                    style.innerHTML = `
+                        button[data-testid='stChatInputSubmitButton']::after { display: none !important; }
+                        button[data-testid='stChatInputSubmitButton'] svg { display: block !important; fill: var(--text-color) !important; }
+                        button[data-testid='stChatInputSubmitButton'] { background-color: transparent !important; border: none !important; }
+                    `;
+                    doc.head.appendChild(style);
+                });
+            }
+        }
+    });
+    observer.observe(doc.body, { childList: true, subtree: true });
+    </script>
+    """, height=0, width=0)
+    # --------------------------------------------------------------------------
+
     active_prompt = st.session_state.messages[-1]["content"] if st.session_state.messages else ""
     
     try:
