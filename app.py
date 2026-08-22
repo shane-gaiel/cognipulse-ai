@@ -100,7 +100,7 @@ if saved_data and not st.session_state.ls_loaded:
             
         st.session_state.api_key = saved.get("api_key", st.session_state.api_key)
         st.session_state.selected_model = saved.get("selected_model", st.session_state.selected_model)
-        st.session_state.custom_model = saved.get("custom_model", st.session_state.custom_model)
+        st.session_state.custom_model = saved.get("custom_model", saved.get("custom_model", ""))
         st.session_state.subject = saved.get("subject", st.session_state.subject)
         st.session_state.analogy_theme = saved.get("analogy_theme", st.session_state.analogy_theme)
         st.session_state.strictness = saved.get("strictness", st.session_state.strictness)
@@ -111,10 +111,10 @@ if saved_data and not st.session_state.ls_loaded:
         pass
 
 # -------------------------------------------------------------
-# 4. Custom Theme-Adaptive Styling & Header Stop Button Layout
+# 4. Custom Styling & Header Positioning for Stop Button
 # -------------------------------------------------------------
 is_gen = st.session_state.get("is_generating", False)
-stop_btn_style = "display: inline-block;" if is_gen else "display: none;"
+stop_btn_display = "inline-block" if is_gen else "none"
 
 st.markdown(f"""
 <style>
@@ -139,13 +139,34 @@ st.markdown(f"""
         max-width: 1200px;
     }}
 
-    /* Completely hide native overlapping status text/spinner animation to prevent blocking custom branding */
+    /* Completely hide native overlapping status text/spinner animation */
     [data-testid="stStatusWidget"] {{
         display: none !important;
     }}
 
     [data-testid="stChatInput"] {{
         bottom: 1rem !important;
+    }}
+
+    /* Position the Stop button right inside the top header toolbar area safely */
+    .header-stop-wrapper {{
+        display: {stop_btn_display};
+        position: fixed;
+        top: 0.5rem;
+        right: 12.5rem;
+        z-index: 99999999;
+    }}
+
+    .header-stop-wrapper button {{
+        background-color: #ff4b4b !important;
+        color: white !important;
+        border: none !important;
+        padding: 0.25rem 0.75rem !important;
+        font-size: 0.8rem !important;
+        font-weight: 700 !important;
+        border-radius: 6px !important;
+        min-height: 30px !important;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
     }}
 
     /* Fix Button Sizing & Smallage in Sidebar */
@@ -161,15 +182,6 @@ st.markdown(f"""
     .stButton button:hover {{
         transform: translateY(-1px);
         filter: brightness(1.05);
-    }}
-
-    /* Header Stop Button Injection Container Styling */
-    .header-stop-container {{
-        {stop_btn_style}
-        position: fixed;
-        top: 0.55rem;
-        right: 12.5rem;
-        z-index: 9999999;
     }}
 
     .dashboard-card {{
@@ -244,11 +256,11 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 5. Header Action Button (Stop Generation Button)
+# 5. Native Header Stop Trigger Container
 # -------------------------------------------------------------
 if is_gen:
-    st.markdown('<div class="header-stop-container">', unsafe_allow_html=True)
-    if st.button("⏹️ Stop", key="header_stop_gen_btn", type="secondary"):
+    st.markdown('<div class="header-stop-wrapper">', unsafe_allow_html=True)
+    if st.button("⏹️ Stop", key="native_top_stop_btn"):
         st.session_state.is_generating = False
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
